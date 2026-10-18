@@ -1,0 +1,1057 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Что поиграть</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Рекомендательная система игр: введите игру, которая понравилась, и получите похожие.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Onest:wght@400;500;600;700&family=Unbounded:wght@600;700;800&display=swap">
+<style>
+/* Макет: одна колонка до 1120px. Сверху поиск и запрос, затем «что видит модель»,
+   сетка коробок-рекомендаций и внизу четыре шага о том, как работает модель. */
+:root {
+  --bg: #edeff4;
+  --surface: #ffffff;
+  --surface-2: #e3e6ee;
+  --ink: #12131a;
+  --ink-2: #555a6d;
+  --line: #d3d7e2;
+  --accent: #4430e6;
+  --accent-ink: #ffffff;
+  --accent-soft: #e5e1fd;
+  --good: #129a50;
+  --good-off: #d6dae4;
+  --bad: #d6383e;
+  --bad-soft: #fbe4e4;
+  --cover-ink: #ffffff;
+  --cover-l: 50%;
+  --shadow: 0 1px 2px rgb(18 19 26 / .05), 0 14px 32px -18px rgb(18 19 26 / .28);
+  --font-display: "Unbounded", "Arial Black", system-ui, sans-serif;
+  --font-body: "Onest", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e0f15; --surface: #171923; --surface-2: #21242f; --ink: #eceef6; --ink-2: #9aa0b6;
+    --line: #2b2f3f; --accent: #8f86ff; --accent-ink: #0e0f15; --accent-soft: #29254f;
+    --good: #3cc77c; --good-off: #2b2f3e; --bad: #ff6b6f; --bad-soft: #3b1f26;
+    --cover-ink: #ffffff; --cover-l: 44%;
+    --shadow: 0 1px 2px rgb(0 0 0 / .35), 0 16px 36px -18px rgb(0 0 0 / .75);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e0f15; --surface: #171923; --surface-2: #21242f; --ink: #eceef6; --ink-2: #9aa0b6;
+  --line: #2b2f3f; --accent: #8f86ff; --accent-ink: #0e0f15; --accent-soft: #29254f;
+  --good: #3cc77c; --good-off: #2b2f3e; --bad: #ff6b6f; --bad-soft: #3b1f26;
+  --cover-ink: #ffffff; --cover-l: 44%;
+  --shadow: 0 1px 2px rgb(0 0 0 / .35), 0 16px 36px -18px rgb(0 0 0 / .75);
+  color-scheme: dark;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font: 400 16px/1.5 var(--font-body); -webkit-font-smoothing: antialiased;
+}
+button, input { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sr-only {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+.page {
+  max-width: 1120px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 22px 72px;
+}
+main { display: grid; gap: 44px; margin-top: 34px; }
+
+/* шапка */
+.top { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px 24px; }
+.brand { display: inline-flex; align-items: center; gap: 10px; font: 700 17px/1 var(--font-display); letter-spacing: -.01em; }
+.brand svg { width: 34px; height: 34px; flex: none; }
+.logo-body { fill: var(--accent); }
+.logo-mark { fill: var(--accent-ink); }
+.stats { margin: 0; font: 400 13px/1.4 var(--font-mono); color: var(--ink-2); font-variant-numeric: tabular-nums; }
+
+/* поиск и запрос */
+.hero { display: grid; gap: 18px; }
+.hero h1 {
+  margin: 0; max-width: 19ch;
+  font: 700 clamp(28px, 4.6vw, 48px)/1.07 var(--font-display); letter-spacing: -.03em; text-wrap: balance;
+}
+.lede { margin: 0; max-width: 60ch; color: var(--ink-2); font-size: 17px; }
+.search-wrap { position: relative; max-width: 780px; }
+.search {
+  display: flex; align-items: center; gap: 12px; height: 60px; padding-inline: 18px;
+  background: var(--surface); border: 2px solid var(--ink); border-radius: 16px;
+  transition: border-color .15s, box-shadow .15s;
+}
+.search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+.search > svg { width: 21px; height: 21px; flex: none; color: var(--ink-2); }
+.search input { flex: 1; min-width: 0; height: 100%; border: 0; outline: 0; background: transparent; font-size: 18px; font-weight: 500; }
+.search input::placeholder { color: var(--ink-2); opacity: .75; }
+.search kbd { flex: none; font: 500 12px/1 var(--font-mono); color: var(--ink-2); border: 1px solid var(--line); border-radius: 6px; padding: 5px 7px; }
+
+.suggest {
+  position: absolute; z-index: 20; left: 0; right: 0; top: calc(100% + 8px);
+  margin: 0; padding: 6px; list-style: none; max-height: min(430px, 62vh); overflow-y: auto;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow);
+}
+.suggest li { display: flex; align-items: center; gap: 12px; padding: 8px 10px; border-radius: 10px; cursor: pointer; }
+.suggest li[aria-selected="true"] { background: var(--surface-2); }
+.s-text { display: grid; min-width: 0; }
+.s-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.s-meta { font-size: 13px; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.s-flag { margin-left: auto; flex: none; font: 600 11px var(--font-mono); text-transform: uppercase; letter-spacing: .06em; color: var(--accent); }
+.suggest li.s-none { cursor: default; color: var(--ink-2); padding: 12px; }
+
+.query { display: grid; gap: 10px; }
+.chip-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.chip-label { min-width: 104px; font: 600 12px/1.2 var(--font-mono); text-transform: uppercase; letter-spacing: .08em; color: var(--ink-2); }
+.chips { display: contents; }
+.chip {
+  display: inline-flex; align-items: center; gap: 8px; max-width: 100%; padding: 4px 4px 4px 5px;
+  background: var(--surface); border: 1.5px solid var(--accent); border-radius: 11px; font-size: 14px; font-weight: 600;
+}
+.chip.bad { border-color: var(--bad); }
+.chip.bad .chip-title { text-decoration: line-through; text-decoration-color: var(--bad); text-decoration-thickness: 2px; }
+.chip-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chip button {
+  display: grid; place-items: center; width: 26px; height: 26px; flex: none;
+  border: 0; border-radius: 8px; background: transparent; color: var(--ink-2);
+}
+.chip button:hover { background: var(--surface-2); color: var(--ink); }
+.chip button svg { width: 14px; height: 14px; }
+.example-tag { font: 600 11px/1 var(--font-mono); text-transform: uppercase; letter-spacing: .06em; color: var(--ink-2); border: 1px dashed var(--ink-2); border-radius: 6px; padding: 4px 6px; }
+
+.tools { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
+.switch { display: inline-flex; align-items: center; gap: 10px; cursor: pointer; font-size: 15px; user-select: none; }
+.track {
+  position: relative; width: 40px; height: 24px; flex: none; border-radius: 999px;
+  background: var(--surface-2); border: 1px solid var(--line); transition: background .15s, border-color .15s;
+}
+.track::after {
+  content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%;
+  background: var(--ink-2); transition: transform .15s, background .15s;
+}
+.switch input:checked + .track { background: var(--accent); border-color: var(--accent); }
+.switch input:checked + .track::after { transform: translateX(16px); background: var(--accent-ink); }
+.switch input:focus-visible + .track { outline: 2px solid var(--accent); outline-offset: 2px; }
+.tools .spacer { flex: 1; }
+
+.btn {
+  display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px; border-radius: 10px;
+  background: var(--surface); border: 1px solid var(--line); font-size: 14px; font-weight: 500; line-height: 1.2;
+  transition: background .12s, border-color .12s, color .12s;
+}
+.btn svg { width: 16px; height: 16px; flex: none; }
+.btn:hover { border-color: var(--ink-2); }
+.btn-like { color: var(--accent); }
+.btn-like:hover { background: var(--accent-soft); border-color: var(--accent); }
+.btn-bad:hover { color: var(--bad); background: var(--bad-soft); border-color: var(--bad); }
+.btn:disabled { opacity: .5; cursor: default; }
+
+.try { margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; font-size: 15px; color: var(--ink-2); }
+.link { padding: 0; border: 0; background: none; color: var(--ink); font-weight: 600; text-decoration: underline; text-decoration-color: var(--line); text-decoration-thickness: 2px; text-underline-offset: 4px; }
+.link:hover { text-decoration-color: var(--accent); color: var(--accent); }
+
+/* что видит модель */
+.eyebrow { margin: 0; font: 600 12px/1.3 var(--font-mono); text-transform: uppercase; letter-spacing: .09em; color: var(--ink-2); }
+.profile { display: grid; gap: 12px; }
+.profile-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 18px; }
+.profile-hint { margin: 0; font-size: 13px; color: var(--ink-2); }
+.pf-list { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.pf {
+  position: relative; overflow: hidden; padding: 6px 13px 9px; border-radius: 10px;
+  background: var(--surface); border: 1px solid var(--line); font-size: 14px;
+}
+.pf::before { content: ""; position: absolute; left: 0; bottom: 0; height: 3px; width: calc(var(--w) * 100%); background: var(--accent); }
+.pf.genre { font-weight: 700; border-color: var(--accent); }
+
+/* рекомендации */
+.results { display: grid; gap: 18px; scroll-margin-top: 16px; }
+.results-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px; }
+.results-head h2 { margin: 0; font: 700 clamp(20px, 2.7vw, 27px)/1.2 var(--font-display); letter-spacing: -.02em; text-wrap: balance; }
+.note { margin: 0; font-size: 14px; color: var(--ink-2); }
+.grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 330px), 1fr)); gap: 14px;
+  margin: 0; padding: 0; list-style: none; transition: opacity .2s;
+}
+.grid[aria-busy="true"] { opacity: .5; }
+.card {
+  display: grid; grid-template-columns: 72px minmax(0, 1fr); grid-template-rows: 1fr auto; gap: 14px;
+  padding: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 18px;
+  animation: rise .35s cubic-bezier(.2, .7, .3, 1) both; animation-delay: calc(var(--i, 0) * 22ms);
+}
+@keyframes rise { from { transform: translateY(10px); } to { transform: none; } }
+.card-body { display: grid; gap: 5px; align-content: start; min-width: 0; }
+.card-top { display: flex; align-items: center; gap: 8px; min-height: 20px; }
+.rank { font: 600 12px/1 var(--font-mono); color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.btn-ghost {
+  display: inline-flex; align-items: center; gap: 4px; margin-left: auto; padding: 3px 7px; border-radius: 8px;
+  border: 1px solid transparent; background: none; color: var(--ink-2); font-size: 13px; font-weight: 500; line-height: 1.2;
+}
+.btn-ghost svg { width: 14px; height: 14px; flex: none; }
+.btn-ghost:hover { color: var(--bad); background: var(--bad-soft); border-color: var(--bad); }
+.badge { font: 600 11px/1 var(--font-mono); text-transform: uppercase; letter-spacing: .06em; color: var(--accent); background: var(--accent-soft); padding: 4px 6px; border-radius: 6px; }
+.card h3 { margin: 0; font-size: 17px; font-weight: 700; line-height: 1.25; overflow-wrap: anywhere; }
+.meta { margin: 0; font-size: 13.5px; color: var(--ink-2); }
+.hp { display: flex; align-items: center; gap: 3px; margin-top: 4px; }
+.hp i { width: 11px; height: 9px; border-radius: 2px; background: var(--good-off); }
+.hp i.on { background: var(--good); }
+.hp b { margin-left: 8px; font: 600 13px/1 var(--font-mono); font-variant-numeric: tabular-nums; }
+.why { margin: 4px 0 0; font-size: 13.5px; color: var(--ink-2); }
+.why span { color: var(--ink); font-weight: 600; }
+.actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; }
+.error { grid-column: 1 / -1; padding: 18px; border: 1px solid var(--bad); border-radius: 16px; background: var(--bad-soft); display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.more-row { display: flex; justify-content: center; }
+.empty { display: grid; gap: 8px; justify-items: start; padding: 26px; border: 1.5px dashed var(--line); border-radius: 18px; }
+.empty h2 { margin: 0; font: 700 20px/1.25 var(--font-display); }
+.empty p { margin: 0; color: var(--ink-2); max-width: 56ch; }
+
+/* обложки: генерируются из жанра и id игры */
+.cover {
+  position: relative; flex: none; width: 72px; max-width: 100%; aspect-ratio: 3 / 4; overflow: hidden;
+  border-radius: 9px; color: var(--cover-ink);
+  background:
+    linear-gradient(180deg, rgb(0 0 0 / .3) 0 13%, transparent 13%),
+    radial-gradient(circle at var(--x) var(--y), hsl(var(--h2) 92% 68% / .9) 0 var(--r), transparent calc(var(--r) + 1%)),
+    repeating-linear-gradient(var(--a), rgb(255 255 255 / .09) 0 5px, transparent 5px 13px),
+    linear-gradient(var(--a), hsl(var(--h1) 72% var(--cover-l)), hsl(var(--h2) 78% calc(var(--cover-l) - 20%)));
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / .14);
+}
+.cover b {
+  position: absolute; left: 7px; right: 4px; bottom: 6px; overflow: hidden; white-space: nowrap;
+  font: 800 17px/1 var(--font-display); letter-spacing: -.04em; text-shadow: 0 1px 3px rgb(0 0 0 / .35);
+}
+.cover-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.cover.l4 b { font-size: 14px; }
+.cover.l5 b { font-size: 12px; }
+.cover.sm { width: 32px; border-radius: 6px; }
+.cover.xs { width: 22px; border-radius: 5px; }
+.cover.sm b, .cover.xs b { display: none; }
+
+/* как это работает */
+.how { display: grid; gap: 18px; padding-top: 34px; border-top: 1px solid var(--line); }
+.how h2 { margin: 0; font: 700 22px/1.2 var(--font-display); letter-spacing: -.02em; }
+.steps { display: grid; grid-template-columns: 1fr; gap: 14px; margin: 0; padding: 0; list-style: none; counter-reset: step; }
+@media (min-width: 560px) { .steps { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 980px) { .steps { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.steps li { counter-increment: step; display: grid; gap: 8px; align-content: start; padding: 18px; background: var(--surface); border: 1px solid var(--line); border-radius: 18px; }
+.steps li::before {
+  content: counter(step); display: grid; place-items: center; width: 30px; height: 30px; border-radius: 9px;
+  background: var(--ink); color: var(--bg); font: 800 14px/1 var(--font-display);
+}
+.steps h3 { margin: 0; font-size: 16px; line-height: 1.3; }
+.steps p { margin: 0; font-size: 14.5px; color: var(--ink-2); }
+code { font: 500 13px/1.5 var(--font-mono); background: var(--surface-2); color: var(--ink); padding: 2px 6px; border-radius: 6px; }
+.foot { margin: 0; max-width: 72ch; font-size: 14px; color: var(--ink-2); }
+.fatal { padding: 18px; border-radius: 16px; border: 1px solid var(--bad); background: var(--bad-soft); }
+
+@media (max-width: 560px) {
+  .search { height: 54px; padding-inline: 14px; }
+  .search input { font-size: 16px; }
+  .search kbd { display: none; }
+  .chip-label { min-width: 0; width: 100%; }
+  .card { grid-template-columns: 60px minmax(0, 1fr); padding: 12px; gap: 12px; }
+  .card > .cover { width: 60px; }
+  .lede { font-size: 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="top">
+    <div class="brand">
+      <svg viewBox="0 0 34 34" aria-hidden="true">
+        <rect class="logo-body" x="1" y="6" width="32" height="22" rx="9"/>
+        <path class="logo-mark" d="M11.5 12.5h3V15H17v3h-2.5v2.5h-3V18H9v-3h2.5z"/>
+        <circle class="logo-mark" cx="23" cy="14.6" r="1.9"/>
+        <circle class="logo-mark" cx="26.2" cy="18.6" r="1.9"/>
+      </svg>
+      <span>Что поиграть</span>
+    </div>
+    <p class="stats" id="stats">Загружаю базу игр…</p>
+  </header>
+
+  <main id="app">
+    <section class="hero" aria-labelledby="hero-title">
+      <h1 id="hero-title">Подберём игры, похожие на ту, что понравилась</h1>
+      <p class="lede">Введите одну или несколько игр. Модель сравнит жанры, сеттинг и механики и покажет самые похожие. Отметка «Не то» уточняет подбор.</p>
+
+      <div class="search-wrap">
+        <label class="sr-only" for="q">Название игры</label>
+        <div class="search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>
+          <input id="q" type="text" role="combobox" autocomplete="off" spellcheck="false"
+                 aria-autocomplete="list" aria-expanded="false" aria-controls="suggest"
+                 placeholder="Например: Ведьмак 3, Hollow Knight, кс го">
+          <kbd>Enter</kbd>
+        </div>
+        <ul class="suggest" id="suggest" role="listbox" aria-label="Найденные игры" hidden></ul>
+      </div>
+
+      <div class="query">
+        <div class="chip-row" id="liked-row">
+          <span class="chip-label">Нравится</span>
+          <span class="chips" id="liked"></span>
+          <span class="example-tag" id="example-tag" hidden>пример</span>
+        </div>
+        <div class="chip-row" id="disliked-row" hidden>
+          <span class="chip-label">Не то</span>
+          <span class="chips" id="disliked"></span>
+        </div>
+      </div>
+
+      <div class="tools">
+        <label class="switch" for="no-series">
+          <input type="checkbox" id="no-series" class="sr-only">
+          <span class="track" aria-hidden="true"></span>
+          <span>Без игр той же серии</span>
+        </label>
+        <span class="spacer"></span>
+        <button type="button" class="btn" id="random">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="4"/><circle cx="8.5" cy="8.5" r="1.3" fill="currentColor" stroke="none"/><circle cx="15.5" cy="15.5" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/></svg>
+          Случайная игра
+        </button>
+        <button type="button" class="btn" id="clear">Очистить</button>
+      </div>
+
+      <p class="try" id="try"><span>Попробуйте:</span></p>
+    </section>
+
+    <section class="profile" id="profile-section" aria-labelledby="profile-title" hidden>
+      <div class="profile-head">
+        <h2 class="eyebrow" id="profile-title">Что модель видит в запросе</h2>
+        <p class="profile-hint">Жанры выделены рамкой, полоска снизу показывает вес признака</p>
+      </div>
+      <ul class="pf-list" id="profile"></ul>
+    </section>
+
+    <section class="results" id="results" aria-labelledby="results-title">
+      <div class="results-head">
+        <h2 id="results-title" aria-live="polite">Рекомендации</h2>
+        <p class="note" id="results-note" hidden></p>
+      </div>
+      <ol class="grid" id="grid"></ol>
+      <div class="empty" id="empty" hidden>
+        <h2>Начните с игры, которая понравилась</h2>
+        <p>Наберите название в поиске выше, на русском или английском. Можно добавить несколько игр, и модель найдёт то, что похоже на все сразу.</p>
+      </div>
+      <div class="more-row"><button type="button" class="btn" id="more" hidden>Показать ещё</button></div>
+    </section>
+
+    <section class="how" aria-labelledby="how-title">
+      <h2 id="how-title">Как работает модель</h2>
+      <ol class="steps">
+        <li>
+          <h3>Игра превращается в набор признаков</h3>
+          <p id="how-1">У каждой игры в базе есть жанры и теги: сеттинг, механики, настроение, режимы игры.</p>
+        </li>
+        <li>
+          <h3>Редкие признаки весят больше</h3>
+          <p id="how-2">Вес признака умножается на IDF: чем реже признак встречается в базе, тем больше он говорит об игре.</p>
+        </li>
+        <li>
+          <h3>Похожесть считается как косинус</h3>
+          <p id="how-3">Каждая игра становится вектором, а похожесть двух игр равна косинусу угла между векторами: <code>cos = A·B / (|A|·|B|)</code>.</p>
+        </li>
+        <li>
+          <h3>Несколько игр дают профиль вкуса</h3>
+          <p id="how-4">Векторы любимых игр складываются. Игры с отметкой «Не то» отнимают баллы у всего, что на них похоже.</p>
+        </li>
+      </ol>
+      <p class="foot" id="how-foot">Это контентная фильтрация на TF‑IDF, классический метод машинного обучения для рекомендаций.</p>
+    </section>
+  </main>
+</div>
+<noscript><div class="page"><p class="fatal">Для работы рекомендаций нужен JavaScript.</p></div></noscript>
+
+<script id="reco-config" type="application/json">{"api":null,"params":{"genre_weight":2.0,"genre_split":true,"tag_weight":1.0,"series_weight":1.0,"min_df":2,"dislike_weight":0.5,"reasons":4,"profile":8},"games":[{"id":"witcher3","title":"The Witcher 3: Wild Hunt","year":2015,"series":"witcher","genres":["RPG","Экшен"],"tags":["открытый мир","фэнтези","тёмное фэнтези","сюжетная","выбор и последствия","несколько концовок","от третьего лица","охота на монстров","славянская мифология","магия","романы","исследование","кинематографичная","ближний бой","атмосферная","средневековье"],"aliases":["ведьмак 3","ведьмак","ведьмак 3 дикая охота","witcher 3","witcher"],"steam":292030,"wiki":null},{"id":"skyrim","title":"The Elder Scrolls V: Skyrim","year":2011,"series":"elder-scrolls","genres":["RPG","Экшен"],"tags":["открытый мир","фэнтези","исследование","от первого лица","магия","крафт","скандинавская мифология","нелинейная","атмосферная","ближний бой","средневековье"],"aliases":["скайрим","skyrim","tes 5","тес 5"],"steam":489830,"wiki":null},{"id":"morrowind","title":"The Elder Scrolls III: Morrowind","year":2002,"series":"elder-scrolls","genres":["RPG"],"tags":["открытый мир","фэнтези","исследование","от первого лица","магия","нелинейная","сложная","атмосферная"],"aliases":["морровинд","morrowind","tes 3"],"steam":22320,"wiki":null},{"id":"oblivion","title":"The Elder Scrolls IV: Oblivion","year":2006,"series":"elder-scrolls","genres":["RPG","Экшен"],"tags":["открытый мир","фэнтези","исследование","от первого лица","магия","нелинейная"],"aliases":["обливион","oblivion","tes 4"],"steam":22330,"wiki":null},{"id":"eso","title":"The Elder Scrolls Online","year":2014,"series":"elder-scrolls","genres":["MMO","RPG"],"tags":["онлайн","фэнтези","открытый мир","кооператив","сюжетная","исследование","магия"],"aliases":["тесо","eso","elder scrolls online","тес онлайн"],"steam":306130,"wiki":null},{"id":"eldenring","title":"Elden Ring","year":2022,"series":"elden-ring","genres":["RPG","Экшен"],"tags":["souls-like","открытый мир","тёмное фэнтези","сложная","боссы","исследование","от третьего лица","атмосферная","магия","ближний бой"],"aliases":["элден ринг","елден ринг","elden ring"],"steam":1245620,"wiki":null},{"id":"nightreign","title":"Elden Ring Nightreign","year":2025,"series":"elden-ring","genres":["Экшен","Рогалик"],"tags":["souls-like","кооператив","боссы","сложная","тёмное фэнтези","онлайн","от третьего лица","ближний бой"],"aliases":["найтрейн","nightreign"],"steam":2622380,"wiki":null},{"id":"darksouls","title":"Dark Souls","year":2011,"series":"dark-souls","genres":["RPG","Экшен"],"tags":["souls-like","тёмное фэнтези","сложная","боссы","атмосферная","мрачная","исследование","от третьего лица","ближний бой"],"aliases":["дарк соулс","дарк соулс 1","dark souls","ds1"],"steam":570940,"wiki":null},{"id":"darksouls3","title":"Dark Souls III","year":2016,"series":"dark-souls","genres":["RPG","Экшен"],"tags":["souls-like","тёмное фэнтези","сложная","боссы","атмосферная","мрачная","от третьего лица","ближний бой"],"aliases":["дарк соулс 3","dark souls 3","ds3"],"steam":374320,"wiki":null},{"id":"bloodborne","title":"Bloodborne","year":2015,"series":null,"genres":["RPG","Экшен"],"tags":["souls-like","лавкрафтовский ужас","тёмное фэнтези","мрачная","сложная","боссы","атмосферная","от третьего лица","ближний бой","динамичная"],"aliases":["бладборн","bloodborne"],"steam":null,"wiki":"Bloodborne"},{"id":"sekiro","title":"Sekiro: Shadows Die Twice","year":2019,"series":null,"genres":["Экшен"],"tags":["souls-like","Япония","самураи","сложная","боссы","стелс","ближний бой","от третьего лица","динамичная"],"aliases":["секиро","sekiro"],"steam":814380,"wiki":null},{"id":"liesofp","title":"Lies of P","year":2023,"series":null,"genres":["RPG","Экшен"],"tags":["souls-like","сложная","боссы","мрачная","стимпанк","тёмное фэнтези","от третьего лица","ближний бой"],"aliases":["лайс оф пи","lies of p","пиноккио"],"steam":1627720,"wiki":null},{"id":"nioh2","title":"Nioh 2","year":2020,"series":"nioh","genres":["RPG","Экшен"],"tags":["souls-like","Япония","самураи","демоны","лутер","сложная","боссы","кооператив","от третьего лица","ближний бой"],"aliases":["нио 2","ниох 2","nioh 2"],"steam":1325200,"wiki":null},{"id":"wukong","title":"Black Myth: Wukong","year":2024,"series":null,"genres":["Экшен","RPG"],"tags":["souls-like","мифология","боссы","сложная","от третьего лица","ближний бой","магия","кинематографичная"],"aliases":["вуконг","укун","black myth wukong","блэк миф"],"steam":2358720,"wiki":null},{"id":"remnant2","title":"Remnant II","year":2023,"series":null,"genres":["Шутер","Экшен"],"tags":["souls-like","кооператив","процедурная генерация","боссы","сложная","от третьего лица","тёмное фэнтези","научная фантастика","лутер"],"aliases":["ремнант 2","remnant 2"],"steam":1282100,"wiki":null},{"id":"jedifo","title":"Star Wars Jedi: Fallen Order","year":2019,"series":"star-wars-jedi","genres":["Экшен","Приключение"],"tags":["souls-like","научная фантастика","космос","метроидвания","от третьего лица","ближний бой","сюжетная","исследование","кинематографичная"],"aliases":["джедай павший орден","fallen order","star wars jedi"],"steam":1172380,"wiki":null},{"id":"stellarblade","title":"Stellar Blade","year":2024,"series":null,"genres":["Экшен"],"tags":["hack and slash","научная фантастика","постапокалипсис","боссы","от третьего лица","ближний бой","сложная","souls-like"],"aliases":["стеллар блейд","stellar blade"],"steam":3489700,"wiki":null},{"id":"cyberpunk","title":"Cyberpunk 2077","year":2020,"series":null,"genres":["RPG","Экшен"],"tags":["открытый мир","киберпанк","научная фантастика","от первого лица","сюжетная","выбор и последствия","несколько концовок","антиутопия","романы","кинематографичная"],"aliases":["киберпанк","киберпанк 2077","cyberpunk","cp2077"],"steam":1091500,"wiki":null},{"id":"deusexhr","title":"Deus Ex: Human Revolution","year":2011,"series":"deus-ex","genres":["RPG","Экшен"],"tags":["киберпанк","иммерсив-сим","стелс","выбор и последствия","от первого лица","научная фантастика","сюжетная","несколько концовок"],"aliases":["деус экс","дэус экс","deus ex"],"steam":238010,"wiki":null},{"id":"outerworlds","title":"The Outer Worlds","year":2019,"series":"outer-worlds","genres":["RPG","Шутер"],"tags":["научная фантастика","космос","юмор","выбор и последствия","от первого лица","напарники","антиутопия"],"aliases":["аутер ворлдс","outer worlds"],"steam":578650,"wiki":null},{"id":"outerworlds2","title":"The Outer Worlds 2","year":2025,"series":"outer-worlds","genres":["RPG","Шутер"],"tags":["научная фантастика","космос","юмор","выбор и последствия","от первого лица","напарники","антиутопия"],"aliases":["аутер ворлдс 2","outer worlds 2"],"steam":1449110,"wiki":null},{"id":"starfield","title":"Starfield","year":2023,"series":null,"genres":["RPG"],"tags":["космос","научная фантастика","открытый мир","исследование","от первого лица","строительство","крафт","напарники"],"aliases":["старфилд","starfield"],"steam":1716740,"wiki":null},{"id":"masseffect2","title":"Mass Effect 2","year":2010,"series":"mass-effect","genres":["RPG","Шутер"],"tags":["научная фантастика","космос","выбор и последствия","романы","напарники","сюжетная","от третьего лица","пришельцы","партия","кинематографичная"],"aliases":["масс эффект 2","масс эффект","mass effect 2","mass effect"],"steam":1328670,"wiki":null},{"id":"kotor","title":"Star Wars: Knights of the Old Republic","year":2003,"series":"star-wars-kotor","genres":["RPG"],"tags":["научная фантастика","космос","выбор и последствия","партия","сюжетная","несколько концовок","напарники"],"aliases":["котор","рыцари старой республики","kotor"],"steam":32370,"wiki":null},{"id":"daorigins","title":"Dragon Age: Origins","year":2009,"series":"dragon-age","genres":["RPG"],"tags":["тёмное фэнтези","партия","выбор и последствия","романы","сюжетная","тактика","магия","напарники","несколько концовок"],"aliases":["драгон эйдж","эпоха драконов","dragon age origins","dragon age"],"steam":47810,"wiki":null},{"id":"bg3","title":"Baldur's Gate 3","year":2023,"series":"baldurs-gate","genres":["RPG","Стратегия"],"tags":["пошаговая","фэнтези","партия","выбор и последствия","романы","кооператив","изометрия","сюжетная","магия","тактика","нелинейная","несколько концовок"],"aliases":["балдурс гейт 3","балдур","бг3","bg3","baldurs gate 3"],"steam":1086940,"wiki":null},{"id":"dos2","title":"Divinity: Original Sin 2","year":2017,"series":"divinity","genres":["RPG","Стратегия"],"tags":["пошаговая","фэнтези","партия","выбор и последствия","кооператив","изометрия","тактика","магия","сюжетная","нелинейная"],"aliases":["дивинити","divinity original sin 2","original sin 2","dos2"],"steam":435150,"wiki":null},{"id":"pillars","title":"Pillars of Eternity","year":2015,"series":"pillars","genres":["RPG"],"tags":["фэнтези","партия","изометрия","сюжетная","выбор и последствия","тактика","магия"],"aliases":["пилларс","столпы вечности","pillars of eternity"],"steam":291650,"wiki":null},{"id":"avowed","title":"Avowed","year":2025,"series":"pillars","genres":["RPG","Экшен"],"tags":["фэнтези","от первого лица","магия","выбор и последствия","напарники","исследование","сюжетная"],"aliases":["авоуд","avowed"],"steam":2457220,"wiki":null},{"id":"pathfinder","title":"Pathfinder: Wrath of the Righteous","year":2021,"series":"pathfinder","genres":["RPG","Стратегия"],"tags":["фэнтези","партия","изометрия","выбор и последствия","тактика","магия","сложная","демоны","нелинейная","несколько концовок"],"aliases":["пасфайндер","гнев праведников","pathfinder","wotr"],"steam":1184370,"wiki":null},{"id":"planescape","title":"Planescape: Torment","year":1999,"series":null,"genres":["RPG"],"tags":["сюжетная","философская","выбор и последствия","изометрия","фэнтези","несколько концовок","мрачная"],"aliases":["планскейп","planescape torment","planescape"],"steam":466300,"wiki":null},{"id":"disco","title":"Disco Elysium","year":2019,"series":null,"genres":["RPG"],"tags":["детектив","сюжетная","выбор и последствия","изометрия","юмор","философская","психологическая","нелинейная","инди","рисованная","несколько концовок"],"aliases":["диско элизиум","диско","disco elysium"],"steam":632470,"wiki":null},{"id":"fallout2","title":"Fallout 2","year":1998,"series":"fallout","genres":["RPG"],"tags":["постапокалипсис","изометрия","пошаговая","выбор и последствия","нелинейная","юмор","несколько концовок","сложная"],"aliases":["фоллаут 2","фолыч 2","fallout 2"],"steam":38410,"wiki":null},{"id":"fallout3","title":"Fallout 3","year":2008,"series":"fallout","genres":["RPG","Шутер"],"tags":["открытый мир","постапокалипсис","от первого лица","исследование","выбор и последствия","несколько концовок","мрачная"],"aliases":["фоллаут 3","фолыч 3","fallout 3"],"steam":22370,"wiki":null},{"id":"fallout_nv","title":"Fallout: New Vegas","year":2010,"series":"fallout","genres":["RPG","Шутер"],"tags":["открытый мир","постапокалипсис","выбор и последствия","от первого лица","нелинейная","юмор","вестерн","несколько концовок","исследование"],"aliases":["нью вегас","new vegas","fallout new vegas","fnv"],"steam":22380,"wiki":null},{"id":"fallout4","title":"Fallout 4","year":2015,"series":"fallout","genres":["RPG","Шутер"],"tags":["открытый мир","постапокалипсис","крафт","строительство","от первого лица","исследование","напарники","выбор и последствия"],"aliases":["фоллаут 4","фолыч 4","фоллаут","fallout 4","fallout"],"steam":377160,"wiki":null},{"id":"vtmb","title":"Vampire: The Masquerade – Bloodlines","year":2004,"series":"vampire-masquerade","genres":["RPG"],"tags":["вампиры","выбор и последствия","иммерсив-сим","от первого лица","мрачная","нелинейная","сюжетная","несколько концовок"],"aliases":["вампиры маскарад","bloodlines","vtmb","vampire the masquerade"],"steam":2600,"wiki":null},{"id":"gothic2","title":"Gothic II","year":2002,"series":"gothic","genres":["RPG"],"tags":["открытый мир","фэнтези","сложная","атмосферная","от третьего лица","сюжетная","магия"],"aliases":["готика 2","готика","gothic 2","gothic"],"steam":39510,"wiki":null},{"id":"kcd","title":"Kingdom Come: Deliverance","year":2018,"series":"kingdom-come","genres":["RPG","Экшен"],"tags":["открытый мир","средневековье","историческая","реалистичная","от первого лица","сложная","сюжетная","ближний бой"],"aliases":["кингдом кам","kingdom come deliverance","kcd"],"steam":379430,"wiki":null},{"id":"kcd2","title":"Kingdom Come: Deliverance II","year":2025,"series":"kingdom-come","genres":["RPG","Экшен"],"tags":["открытый мир","средневековье","историческая","реалистичная","от первого лица","сложная","сюжетная","ближний бой","выбор и последствия","кинематографичная"],"aliases":["кингдом кам 2","kingdom come deliverance 2","kcd2"],"steam":1771300,"wiki":null},{"id":"bannerlord","title":"Mount & Blade II: Bannerlord","year":2022,"series":"mount-and-blade","genres":["RPG","Стратегия","Песочница"],"tags":["средневековье","открытый мир","ближний бой","война","менеджмент","экономика","от третьего лица","нелинейная"],"aliases":["баннерлорд","маунт энд блейд","bannerlord","mount and blade 2"],"steam":261550,"wiki":null},{"id":"kenshi","title":"Kenshi","year":2018,"series":null,"genres":["RPG","Песочница"],"tags":["открытый мир","сложная","колонии","строительство","постапокалипсис","инди","нелинейная","партия"],"aliases":["кенши","kenshi"],"steam":233860,"wiki":null},{"id":"dd2","title":"Dragon's Dogma 2","year":2024,"series":"dragons-dogma","genres":["RPG","Экшен"],"tags":["открытый мир","фэнтези","охота на монстров","напарники","исследование","от третьего лица","магия"],"aliases":["драгонс догма 2","dragons dogma 2","dd2"],"steam":2054970,"wiki":null},{"id":"hogwarts","title":"Hogwarts Legacy","year":2023,"series":null,"genres":["RPG","Экшен"],"tags":["открытый мир","магия","фэнтези","школа","исследование","от третьего лица","сюжетная"],"aliases":["хогвартс","хогвартс наследие","гарри поттер","hogwarts legacy"],"steam":990080,"wiki":null},{"id":"mhworld","title":"Monster Hunter: World","year":2018,"series":"monster-hunter","genres":["Экшен","RPG"],"tags":["охота на монстров","кооператив","крафт","боссы","от третьего лица","гринд","онлайн","сложная","фэнтези"],"aliases":["монстр хантер","monster hunter world","mhw"],"steam":582010,"wiki":null},{"id":"mhwilds","title":"Monster Hunter Wilds","year":2025,"series":"monster-hunter","genres":["Экшен","RPG"],"tags":["охота на монстров","кооператив","крафт","боссы","от третьего лица","гринд","онлайн","открытый мир","фэнтези"],"aliases":["монстр хантер вайлдс","monster hunter wilds"],"steam":2246340,"wiki":null},{"id":"hzd","title":"Horizon Zero Dawn","year":2017,"series":"horizon","genres":["Экшен","RPG"],"tags":["открытый мир","постапокалипсис","роботы","охота на монстров","от третьего лица","научная фантастика","сюжетная","крафт","исследование","кинематографичная"],"aliases":["хорайзон","horizon zero dawn","horizon"],"steam":1151640,"wiki":null},{"id":"hfw","title":"Horizon Forbidden West","year":2022,"series":"horizon","genres":["Экшен","RPG"],"tags":["открытый мир","постапокалипсис","роботы","охота на монстров","от третьего лица","научная фантастика","сюжетная","крафт","исследование","под водой","кинематографичная"],"aliases":["хорайзон 2","запретный запад","horizon forbidden west"],"steam":2420110,"wiki":null},{"id":"nier","title":"NieR: Automata","year":2017,"series":"nier","genres":["Экшен","RPG"],"tags":["hack and slash","роботы","постапокалипсис","научная фантастика","философская","несколько концовок","эмоциональная","от третьего лица","аниме","боссы"],"aliases":["ниер","нир автомата","nier automata","nier"],"steam":524220,"wiki":null},{"id":"diablo2","title":"Diablo II","year":2000,"series":"diablo","genres":["RPG","Экшен"],"tags":["hack and slash","лутер","изометрия","тёмное фэнтези","демоны","кооператив","гринд"],"aliases":["диабло 2","дьябло 2","diablo 2","d2"],"steam":null,"wiki":"Diablo II"},{"id":"diablo4","title":"Diablo IV","year":2023,"series":"diablo","genres":["RPG","Экшен"],"tags":["hack and slash","лутер","изометрия","тёмное фэнтези","демоны","кооператив","онлайн","гринд","открытый мир"],"aliases":["диабло 4","дьябло 4","диабло","diablo 4","d4"],"steam":2344520,"wiki":null},{"id":"poe","title":"Path of Exile","year":2013,"series":"path-of-exile","genres":["RPG","Экшен"],"tags":["hack and slash","лутер","изометрия","тёмное фэнтези","бесплатная","онлайн","сложная","гринд"],"aliases":["пое","путь изгнанника","path of exile","poe"],"steam":238960,"wiki":null},{"id":"poe2","title":"Path of Exile 2","year":2024,"series":"path-of-exile","genres":["RPG","Экшен"],"tags":["hack and slash","лутер","изометрия","тёмное фэнтези","онлайн","сложная","гринд","боссы"],"aliases":["пое 2","path of exile 2","poe 2"],"steam":2694490,"wiki":null},{"id":"grimdawn","title":"Grim Dawn","year":2016,"series":null,"genres":["RPG","Экшен"],"tags":["hack and slash","лутер","изометрия","тёмное фэнтези","кооператив","инди","гринд","лавкрафтовский ужас"],"aliases":["грим даун","grim dawn"],"steam":219990,"wiki":null},{"id":"spacerangers2","title":"Space Rangers 2","year":2004,"series":"space-rangers","genres":["RPG","Стратегия"],"tags":["космос","научная фантастика","открытый мир","пошаговая","экономика","нелинейная","пришельцы","юмор"],"aliases":["космические рейнджеры 2","космические рейнджеры","кр2","space rangers 2"],"steam":null,"wiki":"Space Rangers 2: Dominators"},{"id":"persona5","title":"Persona 5 Royal","year":2019,"series":"persona","genres":["RPG"],"tags":["JRPG","пошаговая","аниме","школа","симулятор жизни","Япония","сюжетная","романы","партия"],"aliases":["персона 5","персона","persona 5","p5r"],"steam":1687950,"wiki":null},{"id":"ff7r","title":"Final Fantasy VII Remake","year":2020,"series":"final-fantasy","genres":["RPG","Экшен"],"tags":["JRPG","сюжетная","партия","научная фантастика","фэнтези","боссы","эмоциональная","от третьего лица","кинематографичная"],"aliases":["финалка 7","файнал фэнтези 7","ff7","ff7 remake","final fantasy 7"],"steam":1462040,"wiki":null},{"id":"ff16","title":"Final Fantasy XVI","year":2023,"series":"final-fantasy","genres":["RPG","Экшен"],"tags":["JRPG","сюжетная","тёмное фэнтези","боссы","от третьего лица","ближний бой","магия","кинематографичная"],"aliases":["финалка 16","ff16","ffxvi","final fantasy 16"],"steam":2515020,"wiki":null},{"id":"clairobscur","title":"Clair Obscur: Expedition 33","year":2025,"series":null,"genres":["RPG"],"tags":["пошаговая","сюжетная","эмоциональная","фэнтези","партия","боссы","от третьего лица","JRPG"],"aliases":["экспедиция 33","клер обскур","expedition 33","clair obscur"],"steam":1903340,"wiki":null},{"id":"dq11","title":"Dragon Quest XI","year":2017,"series":"dragon-quest","genres":["RPG"],"tags":["JRPG","пошаговая","фэнтези","партия","аниме","сюжетная","магия"],"aliases":["драгон квест 11","dragon quest 11","dq11"],"steam":1295510,"wiki":null},{"id":"octopath","title":"Octopath Traveler","year":2018,"series":"octopath","genres":["RPG"],"tags":["JRPG","пошаговая","пиксельная графика","фэнтези","партия","сюжетная"],"aliases":["октопас","октопат","octopath traveler"],"steam":921570,"wiki":null},{"id":"chronotrigger","title":"Chrono Trigger","year":1995,"series":null,"genres":["RPG"],"tags":["JRPG","пошаговая","путешествия во времени","пиксельная графика","фэнтези","партия","несколько концовок","сюжетная"],"aliases":["хроно триггер","chrono trigger"],"steam":613830,"wiki":null},{"id":"undertale","title":"Undertale","year":2015,"series":"undertale","genres":["RPG"],"tags":["пиксельная графика","юмор","выбор и последствия","несколько концовок","инди","эмоциональная","ретро"],"aliases":["андертейл","undertale"],"steam":391540,"wiki":null},{"id":"deltarune","title":"Deltarune","year":2018,"series":"undertale","genres":["RPG"],"tags":["пиксельная графика","юмор","выбор и последствия","инди","эмоциональная","ретро","партия"],"aliases":["дельтарун","deltarune"],"steam":1671210,"wiki":null},{"id":"omori","title":"Omori","year":2020,"series":null,"genres":["RPG","Хоррор"],"tags":["психологическая","пиксельная графика","эмоциональная","пошаговая","мрачная","инди","сюжетная","несколько концовок"],"aliases":["омори","omori"],"steam":1150690,"wiki":null},{"id":"yakuza0","title":"Yakuza 0","year":2015,"series":"yakuza","genres":["Экшен","Приключение"],"tags":["криминал","Япония","beat 'em up","юмор","сюжетная","от третьего лица"],"aliases":["якудза 0","якудза","yakuza 0"],"steam":638970,"wiki":null},{"id":"yakuzalad","title":"Yakuza: Like a Dragon","year":2020,"series":"yakuza","genres":["RPG"],"tags":["криминал","Япония","пошаговая","юмор","сюжетная","JRPG","партия"],"aliases":["якудза лайк э драгон","like a dragon","yakuza like a dragon"],"steam":1235140,"wiki":null},{"id":"genshin","title":"Genshin Impact","year":2020,"series":null,"genres":["RPG","Экшен"],"tags":["открытый мир","аниме","гача","фэнтези","бесплатная","исследование","кооператив","магия"],"aliases":["геншин","геншин импакт","genshin impact","genshin"],"steam":null,"wiki":"Genshin Impact"},{"id":"hsr","title":"Honkai: Star Rail","year":2023,"series":null,"genres":["RPG"],"tags":["пошаговая","аниме","гача","научная фантастика","космос","бесплатная","сюжетная","JRPG"],"aliases":["хонкай стар рейл","хср","honkai star rail","hsr"],"steam":null,"wiki":"Honkai: Star Rail"},{"id":"wuwa","title":"Wuthering Waves","year":2024,"series":null,"genres":["RPG","Экшен"],"tags":["открытый мир","аниме","гача","постапокалипсис","бесплатная","исследование","динамичная"],"aliases":["вутеринг вейвс","вува","wuthering waves"],"steam":null,"wiki":"Wuthering Waves"},{"id":"fe3h","title":"Fire Emblem: Three Houses","year":2019,"series":"fire-emblem","genres":["Стратегия","RPG"],"tags":["пошаговая","тактика","аниме","школа","фэнтези","выбор и последствия","романы","JRPG"],"aliases":["файр эмблем","три дома","fire emblem three houses","fe3h"],"steam":null,"wiki":"Fire Emblem: Three Houses"},{"id":"gow2018","title":"God of War","year":2018,"series":"god-of-war","genres":["Экшен","Приключение"],"tags":["скандинавская мифология","мифология","сюжетная","эмоциональная","от третьего лица","боссы","ближний бой","исследование","кинематографичная"],"aliases":["год оф вар","бог войны","кратос","god of war","gow"],"steam":1593500,"wiki":null},{"id":"gowragnarok","title":"God of War Ragnarök","year":2022,"series":"god-of-war","genres":["Экшен","Приключение"],"tags":["скандинавская мифология","мифология","сюжетная","эмоциональная","от третьего лица","боссы","ближний бой","исследование","кинематографичная"],"aliases":["рагнарек","год оф вар рагнарек","god of war ragnarok"],"steam":2322010,"wiki":null},{"id":"tlou","title":"The Last of Us","year":2013,"series":"tlou","genres":["Экшен","Приключение"],"tags":["постапокалипсис","зомби","эпидемия","сюжетная","эмоциональная","стелс","от третьего лица","крафт","мрачная","кинематографичная"],"aliases":["одни из нас","ластуха","the last of us","tlou"],"steam":1888930,"wiki":null},{"id":"tlou2","title":"The Last of Us Part II","year":2020,"series":"tlou","genres":["Экшен","Приключение"],"tags":["постапокалипсис","зомби","эпидемия","сюжетная","эмоциональная","стелс","от третьего лица","крафт","мрачная","кинематографичная"],"aliases":["одни из нас 2","the last of us 2","tlou 2"],"steam":2531310,"wiki":null},{"id":"uncharted4","title":"Uncharted 4: A Thief's End","year":2016,"series":"uncharted","genres":["Экшен","Приключение"],"tags":["сюжетная","от третьего лица","исследование","головоломки","пираты","напарники","кинематографичная"],"aliases":["анчартед 4","анчартед","uncharted 4","uncharted"],"steam":1659420,"wiki":null},{"id":"tombraider","title":"Tomb Raider","year":2013,"series":"tomb-raider","genres":["Экшен","Приключение"],"tags":["исследование","головоломки","сюжетная","от третьего лица","крафт","стелс","кинематографичная"],"aliases":["томб райдер","лара крофт","tomb raider"],"steam":203160,"wiki":null},{"id":"rdr2","title":"Red Dead Redemption 2","year":2018,"series":"red-dead","genres":["Экшен","Приключение"],"tags":["открытый мир","вестерн","сюжетная","эмоциональная","от третьего лица","криминал","атмосферная","реалистичная","исследование","историческая","кинематографичная"],"aliases":["рдр 2","рдр2","ред дед","red dead redemption 2","rdr2","red dead"],"steam":1174180,"wiki":null},{"id":"gta5","title":"Grand Theft Auto V","year":2013,"series":"gta","genres":["Экшен","Приключение"],"tags":["открытый мир","криминал","автомобили","юмор","от третьего лица","мультиплеер","онлайн","сюжетная","кинематографичная"],"aliases":["гта 5","гта5","гта","gta 5","gta v","gta"],"steam":271590,"wiki":null},{"id":"gtasa","title":"Grand Theft Auto: San Andreas","year":2004,"series":"gta","genres":["Экшен","Приключение"],"tags":["открытый мир","криминал","автомобили","юмор","от третьего лица","сюжетная"],"aliases":["гта са","гта сан андреас","gta sa","san andreas"],"steam":null,"wiki":"Grand Theft Auto: San Andreas"},{"id":"mafia2","title":"Mafia II","year":2010,"series":"mafia","genres":["Экшен","Приключение"],"tags":["криминал","сюжетная","историческая","автомобили","от третьего лица","кинематографичная"],"aliases":["мафия 2","mafia 2"],"steam":1030830,"wiki":null},{"id":"mafiade","title":"Mafia: Definitive Edition","year":2020,"series":"mafia","genres":["Экшен","Приключение"],"tags":["криминал","сюжетная","историческая","автомобили","от третьего лица","кинематографичная"],"aliases":["мафия","мафия 1","mafia","mafia definitive edition"],"steam":1030840,"wiki":null},{"id":"mafiaoc","title":"Mafia: The Old Country","year":2025,"series":"mafia","genres":["Экшен","Приключение"],"tags":["криминал","сюжетная","историческая","от третьего лица","ближний бой","кинематографичная"],"aliases":["мафия олд кантри","mafia the old country"],"steam":1941540,"wiki":null},{"id":"watchdogs2","title":"Watch Dogs 2","year":2016,"series":"watch-dogs","genres":["Экшен","Приключение"],"tags":["открытый мир","юмор","от третьего лица","стелс","автомобили"],"aliases":["вотч догс 2","watch dogs 2","watch dogs"],"steam":447040,"wiki":null},{"id":"ghostoftsushima","title":"Ghost of Tsushima","year":2020,"series":"ghost","genres":["Экшен","Приключение"],"tags":["открытый мир","Япония","самураи","историческая","от третьего лица","стелс","ближний бой","атмосферная","сюжетная","кинематографичная"],"aliases":["призрак цусимы","цусима","ghost of tsushima"],"steam":2215430,"wiki":null},{"id":"ghostofyotei","title":"Ghost of Yōtei","year":2025,"series":"ghost","genres":["Экшен","Приключение"],"tags":["открытый мир","Япония","самураи","историческая","от третьего лица","стелс","ближний бой","атмосферная","сюжетная","кинематографичная"],"aliases":["призрак ётэя","ётэй","йотей","ghost of yotei"],"steam":null,"wiki":"Ghost of Yōtei"},{"id":"ac2","title":"Assassin's Creed II","year":2009,"series":"assassins-creed","genres":["Экшен","Приключение"],"tags":["стелс","паркур","историческая","открытый мир","от третьего лица","сюжетная"],"aliases":["ассасин крид 2","ассасин 2","assassins creed 2","ac2"],"steam":33230,"wiki":null},{"id":"acblackflag","title":"Assassin's Creed IV: Black Flag","year":2013,"series":"assassins-creed","genres":["Экшен","Приключение"],"tags":["пираты","море","открытый мир","паркур","стелс","историческая","от третьего лица"],"aliases":["черный флаг","ассасин 4","black flag","assassins creed 4","ac4"],"steam":242050,"wiki":null},{"id":"acodyssey","title":"Assassin's Creed Odyssey","year":2018,"series":"assassins-creed","genres":["RPG","Экшен"],"tags":["открытый мир","греческая мифология","мифология","историческая","от третьего лица","выбор и последствия","романы","море","исследование"],"aliases":["ассасин одиссея","одиссея","ac odyssey","assassins creed odyssey"],"steam":812140,"wiki":null},{"id":"acvalhalla","title":"Assassin's Creed Valhalla","year":2020,"series":"assassins-creed","genres":["RPG","Экшен"],"tags":["открытый мир","викинги","скандинавская мифология","историческая","от третьего лица","средневековье","строительство","исследование","стелс"],"aliases":["ассасин вальгалла","вальгалла","ac valhalla","assassins creed valhalla"],"steam":2208920,"wiki":null},{"id":"acshadows","title":"Assassin's Creed Shadows","year":2025,"series":"assassins-creed","genres":["RPG","Экшен"],"tags":["открытый мир","Япония","самураи","историческая","стелс","паркур","от третьего лица","исследование"],"aliases":["ассасин тени","ac shadows","assassins creed shadows"],"steam":3159330,"wiki":null},{"id":"arkhamcity","title":"Batman: Arkham City","year":2011,"series":"batman-arkham","genres":["Экшен","Приключение"],"tags":["супергерои","beat 'em up","стелс","детектив","от третьего лица","открытый мир","боссы"],"aliases":["бэтмен","аркхем сити","batman arkham city","arkham city"],"steam":200260,"wiki":null},{"id":"spiderman","title":"Marvel's Spider-Man","year":2018,"series":"spider-man","genres":["Экшен","Приключение"],"tags":["супергерои","открытый мир","паркур","beat 'em up","от третьего лица","сюжетная","кинематографичная"],"aliases":["человек-паук","человек паук","spider-man","spiderman"],"steam":1817070,"wiki":null},{"id":"spiderman2","title":"Marvel's Spider-Man 2","year":2023,"series":"spider-man","genres":["Экшен","Приключение"],"tags":["супергерои","открытый мир","паркур","beat 'em up","от третьего лица","сюжетная","кинематографичная"],"aliases":["человек-паук 2","человек паук 2","spider-man 2","spiderman 2"],"steam":2651280,"wiki":null},{"id":"shadowofmordor","title":"Middle-earth: Shadow of Mordor","year":2014,"series":"middle-earth","genres":["Экшен"],"tags":["открытый мир","фэнтези","тёмное фэнтези","ближний бой","стелс","от третьего лица"],"aliases":["тени мордора","средиземье","shadow of mordor"],"steam":241930,"wiki":null},{"id":"dmc5","title":"Devil May Cry 5","year":2019,"series":"devil-may-cry","genres":["Экшен"],"tags":["hack and slash","демоны","динамичная","боссы","от третьего лица","ближний бой"],"aliases":["девил май край 5","dmc 5","dmc5","devil may cry"],"steam":601150,"wiki":null},{"id":"sifu","title":"Sifu","year":2022,"series":null,"genres":["Экшен"],"tags":["beat 'em up","сложная","ближний бой","динамичная","от третьего лица","сюжетная"],"aliases":["сифу","sifu"],"steam":2138710,"wiki":null},{"id":"control","title":"Control","year":2019,"series":null,"genres":["Экшен","Шутер"],"tags":["мистика","от третьего лица","метроидвания","атмосферная","магия","научная фантастика","сюжетная","психологическая"],"aliases":["контрол","control"],"steam":870780,"wiki":null},{"id":"alanwake2","title":"Alan Wake 2","year":2023,"series":"alan-wake","genres":["Хоррор","Приключение"],"tags":["психологическая","сюжетная","детектив","мистика","от третьего лица","атмосферная","мрачная","кинематографичная"],"aliases":["алан вейк 2","алан уэйк 2","alan wake 2","alan wake"],"steam":null,"wiki":"Alan Wake 2"},{"id":"hitman3","title":"Hitman 3","year":2021,"series":"hitman","genres":["Экшен"],"tags":["стелс","головоломки","от третьего лица","юмор","нелинейная"],"aliases":["хитман","хитман 3","hitman","hitman 3","hitman world of assassination"],"steam":1659040,"wiki":null},{"id":"mgsv","title":"Metal Gear Solid V: The Phantom Pain","year":2015,"series":"metal-gear","genres":["Экшен"],"tags":["стелс","открытый мир","война","тактика","от третьего лица","сюжетная","кинематографичная"],"aliases":["мгс 5","метал гир","mgs 5","mgsv","metal gear solid 5"],"steam":287700,"wiki":null},{"id":"mgsdelta","title":"Metal Gear Solid Delta: Snake Eater","year":2025,"series":"metal-gear","genres":["Экшен"],"tags":["стелс","война","от третьего лица","сюжетная","историческая","кинематографичная"],"aliases":["мгс дельта","snake eater","mgs delta","metal gear solid delta"],"steam":2417610,"wiki":null},{"id":"deathstranding","title":"Death Stranding","year":2019,"series":"death-stranding","genres":["Экшен","Приключение"],"tags":["открытый мир","постапокалипсис","научная фантастика","исследование","атмосферная","сюжетная","от третьего лица","философская","кинематографичная"],"aliases":["дет стрендинг","кодзима","death stranding"],"steam":1190460,"wiki":null},{"id":"deathstranding2","title":"Death Stranding 2: On the Beach","year":2025,"series":"death-stranding","genres":["Экшен","Приключение"],"tags":["открытый мир","постапокалипсис","научная фантастика","исследование","атмосферная","сюжетная","от третьего лица","философская","кинематографичная"],"aliases":["дет стрендинг 2","death stranding 2"],"steam":null,"wiki":"Death Stranding 2: On the Beach"},{"id":"sotc","title":"Shadow of the Colossus","year":2005,"series":null,"genres":["Экшен","Приключение"],"tags":["боссы","атмосферная","исследование","эмоциональная","фэнтези","от третьего лица"],"aliases":["тень колосса","shadow of the colossus","sotc"],"steam":null,"wiki":"Shadow of the Colossus"},{"id":"zeldabotw","title":"The Legend of Zelda: Breath of the Wild","year":2017,"series":"zelda","genres":["Приключение","Экшен"],"tags":["открытый мир","исследование","физика","головоломки","фэнтези","крафт","от третьего лица","атмосферная","боссы","ближний бой","нелинейная"],"aliases":["зельда","зельда дыхание дикой природы","botw","breath of the wild","zelda"],"steam":null,"wiki":"The Legend of Zelda: Breath of the Wild"},{"id":"zeldatotk","title":"The Legend of Zelda: Tears of the Kingdom","year":2023,"series":"zelda","genres":["Приключение","Экшен"],"tags":["открытый мир","исследование","физика","головоломки","фэнтези","строительство","крафт","от третьего лица","атмосферная","боссы","ближний бой","нелинейная"],"aliases":["зельда слезы королевства","totk","tears of the kingdom"],"steam":null,"wiki":"The Legend of Zelda: Tears of the Kingdom"},{"id":"hellblade","title":"Hellblade: Senua's Sacrifice","year":2017,"series":"hellblade","genres":["Экшен","Приключение"],"tags":["психологическая","скандинавская мифология","мифология","сюжетная","атмосферная","от третьего лица","ближний бой","головоломки","кинематографичная"],"aliases":["хеллблейд","сенуа","hellblade"],"steam":414340,"wiki":null},{"id":"plaguetale","title":"A Plague Tale: Innocence","year":2019,"series":"plague-tale","genres":["Приключение"],"tags":["стелс","сюжетная","средневековье","историческая","эмоциональная","эпидемия","от третьего лица","мрачная","кинематографичная"],"aliases":["чумная сказка","a plague tale","plague tale innocence"],"steam":752590,"wiki":null},{"id":"plaguetale2","title":"A Plague Tale: Requiem","year":2022,"series":"plague-tale","genres":["Приключение"],"tags":["стелс","сюжетная","средневековье","историческая","эмоциональная","эпидемия","от третьего лица","мрачная","кинематографичная"],"aliases":["чумная сказка реквием","a plague tale requiem"],"steam":1182900,"wiki":null},{"id":"stray","title":"Stray","year":2022,"series":null,"genres":["Приключение"],"tags":["киберпанк","животные","исследование","головоломки","атмосферная","короткая","от третьего лица","роботы","инди"],"aliases":["стрей","игра про кота","stray"],"steam":1332010,"wiki":null},{"id":"tunic","title":"Tunic","year":2022,"series":null,"genres":["Экшен","Приключение"],"tags":["изометрия","исследование","головоломки","инди","souls-like","животные","боссы"],"aliases":["туник","tunic"],"steam":553420,"wiki":null},{"id":"deathsdoor","title":"Death's Door","year":2021,"series":null,"genres":["Экшен","Приключение"],"tags":["изометрия","исследование","боссы","инди","ближний бой","атмосферная","souls-like","юмор"],"aliases":["детс дор","deaths door"],"steam":894020,"wiki":null},{"id":"hyperlight","title":"Hyper Light Drifter","year":2016,"series":null,"genres":["Экшен","RPG"],"tags":["пиксельная графика","вид сверху","сложная","атмосферная","исследование","инди","ближний бой","научная фантастика"],"aliases":["хайпер лайт дрифтер","hyper light drifter"],"steam":257850,"wiki":null},{"id":"katanazero","title":"Katana ZERO","year":2019,"series":null,"genres":["Экшен","Платформер"],"tags":["пиксельная графика","2D","киберпанк","сложная","сюжетная","динамичная","инди","ближний бой"],"aliases":["катана зеро","katana zero"],"steam":460950,"wiki":null},{"id":"hotlinemiami","title":"Hotline Miami","year":2012,"series":"hotline-miami","genres":["Экшен"],"tags":["вид сверху","пиксельная графика","динамичная","сложная","инди","криминал","музыка","мрачная"],"aliases":["хотлайн майами","hotline miami"],"steam":219150,"wiki":null},{"id":"ghostrunner","title":"Ghostrunner","year":2020,"series":"ghostrunner","genres":["Экшен"],"tags":["киберпанк","паркур","от первого лица","сложная","динамичная","ближний бой","научная фантастика"],"aliases":["гостраннер","ghostrunner"],"steam":1139900,"wiki":null},{"id":"mirrorsedge","title":"Mirror's Edge","year":2008,"series":"mirrors-edge","genres":["Экшен","Платформер"],"tags":["паркур","от первого лица","антиутопия","динамичная","короткая"],"aliases":["миррорс эдж","mirrors edge"],"steam":17410,"wiki":null},{"id":"dyinglight","title":"Dying Light","year":2015,"series":"dying-light","genres":["Выживание","Экшен"],"tags":["зомби","паркур","открытый мир","от первого лица","кооператив","крафт","ближний бой"],"aliases":["даинг лайт","дайинг лайт","dying light"],"steam":239140,"wiki":null},{"id":"dyinglight2","title":"Dying Light 2 Stay Human","year":2022,"series":"dying-light","genres":["Выживание","Экшен"],"tags":["зомби","паркур","открытый мир","от первого лица","кооператив","крафт","ближний бой","выбор и последствия"],"aliases":["даинг лайт 2","дайинг лайт 2","dying light 2"],"steam":534380,"wiki":null},{"id":"deadisland2","title":"Dead Island 2","year":2023,"series":"dead-island","genres":["Экшен"],"tags":["зомби","ближний бой","от первого лица","кооператив","юмор"],"aliases":["дед айленд 2","dead island 2"],"steam":934700,"wiki":null},{"id":"daysgone","title":"Days Gone","year":2019,"series":null,"genres":["Экшен","Выживание"],"tags":["зомби","открытый мир","постапокалипсис","от третьего лица","крафт","сюжетная","стелс","кинематографичная"],"aliases":["дейс гон","жизнь после","days gone"],"steam":1259420,"wiki":null},{"id":"dishonored","title":"Dishonored","year":2012,"series":"dishonored","genres":["Экшен","Приключение"],"tags":["иммерсив-сим","стелс","от первого лица","магия","стимпанк","выбор и последствия","несколько концовок","антиутопия"],"aliases":["дизоноред","dishonored"],"steam":205100,"wiki":null},{"id":"dishonored2","title":"Dishonored 2","year":2016,"series":"dishonored","genres":["Экшен","Приключение"],"tags":["иммерсив-сим","стелс","от первого лица","магия","стимпанк","выбор и последствия","несколько концовок"],"aliases":["дизоноред 2","dishonored 2"],"steam":403640,"wiki":null},{"id":"prey","title":"Prey","year":2017,"series":null,"genres":["Экшен","Шутер"],"tags":["иммерсив-сим","научная фантастика","космос","от первого лица","пришельцы","исследование","атмосферная","крафт","сюжетная"],"aliases":["прей","prey"],"steam":480490,"wiki":null},{"id":"deathloop","title":"Deathloop","year":2021,"series":null,"genres":["Шутер","Экшен"],"tags":["временная петля","от первого лица","иммерсив-сим","стелс","юмор","сюжетная"],"aliases":["детлуп","deathloop"],"steam":1252330,"wiki":null},{"id":"bioshock","title":"BioShock","year":2007,"series":"bioshock","genres":["Шутер"],"tags":["от первого лица","сюжетная","под водой","антиутопия","атмосферная","магия","иммерсив-сим","мрачная"],"aliases":["биошок","bioshock"],"steam":409710,"wiki":null},{"id":"bioshockinf","title":"BioShock Infinite","year":2013,"series":"bioshock","genres":["Шутер"],"tags":["от первого лица","сюжетная","антиутопия","магия","философская","напарники"],"aliases":["биошок инфинит","bioshock infinite"],"steam":8870,"wiki":null},{"id":"hl2","title":"Half-Life 2","year":2004,"series":"half-life","genres":["Шутер"],"tags":["от первого лица","научная фантастика","физика","сюжетная","антиутопия","пришельцы","головоломки"],"aliases":["халф лайф 2","халф-лайф 2","халва 2","half-life 2","half life 2","hl2"],"steam":220,"wiki":null},{"id":"hlalyx","title":"Half-Life: Alyx","year":2020,"series":"half-life","genres":["Шутер","Приключение"],"tags":["VR","от первого лица","научная фантастика","физика","головоломки","пришельцы","антиутопия","атмосферная"],"aliases":["аликс","халф лайф аликс","half-life alyx","hl alyx"],"steam":546560,"wiki":null},{"id":"atomicheart","title":"Atomic Heart","year":2023,"series":"atomic-heart","genres":["Шутер","Экшен"],"tags":["постсоветский сеттинг","роботы","научная фантастика","от первого лица","ближний бой","юмор","крафт","антиутопия"],"aliases":["атомик харт","атомное сердце","atomic heart"],"steam":668580,"wiki":null},{"id":"metro2033","title":"Metro 2033","year":2010,"series":"metro","genres":["Шутер","Хоррор"],"tags":["постапокалипсис","постсоветский сеттинг","от первого лица","сюжетная","атмосферная","стелс","мрачная"],"aliases":["метро 2033","метро","metro 2033"],"steam":286690,"wiki":null},{"id":"metroexodus","title":"Metro Exodus","year":2019,"series":"metro","genres":["Шутер"],"tags":["постапокалипсис","постсоветский сеттинг","от первого лица","сюжетная","атмосферная","стелс","крафт","открытый мир","кинематографичная"],"aliases":["метро исход","metro exodus"],"steam":412020,"wiki":null},{"id":"stalker","title":"S.T.A.L.K.E.R.: Shadow of Chernobyl","year":2007,"series":"stalker","genres":["Шутер","RPG","Выживание"],"tags":["постапокалипсис","постсоветский сеттинг","открытый мир","от первого лица","атмосферная","сложная","исследование","мрачная","научная фантастика"],"aliases":["сталкер","сталкер тень чернобыля","тень чернобыля","stalker"],"steam":4500,"wiki":null},{"id":"stalker2","title":"S.T.A.L.K.E.R. 2: Heart of Chornobyl","year":2024,"series":"stalker","genres":["Шутер","RPG","Выживание"],"tags":["постапокалипсис","постсоветский сеттинг","открытый мир","от первого лица","атмосферная","сложная","исследование","мрачная","научная фантастика"],"aliases":["сталкер 2","сердце чернобыля","stalker 2"],"steam":1643320,"wiki":null},{"id":"atomfall","title":"Atomfall","year":2025,"series":null,"genres":["Экшен","Выживание"],"tags":["постапокалипсис","от первого лица","исследование","крафт","сюжетная","нелинейная","мистика"],"aliases":["атомфол","atomfall"],"steam":801800,"wiki":null},{"id":"farcry3","title":"Far Cry 3","year":2012,"series":"far-cry","genres":["Шутер","Экшен"],"tags":["открытый мир","от первого лица","исследование","крафт","стелс","сюжетная"],"aliases":["фар край 3","far cry 3"],"steam":220240,"wiki":null},{"id":"farcry5","title":"Far Cry 5","year":2018,"series":"far-cry","genres":["Шутер","Экшен"],"tags":["открытый мир","от первого лица","исследование","кооператив","стелс","сюжетная"],"aliases":["фар край 5","фар край","far cry 5","far cry"],"steam":552520,"wiki":null},{"id":"wolfenstein2","title":"Wolfenstein II: The New Colossus","year":2017,"series":"wolfenstein","genres":["Шутер"],"tags":["от первого лица","сюжетная","динамичная","антиутопия","юмор","стелс","кинематографичная"],"aliases":["вольфенштейн 2","wolfenstein 2","wolfenstein"],"steam":612880,"wiki":null},{"id":"doom2016","title":"DOOM","year":2016,"series":"doom","genres":["Шутер"],"tags":["от первого лица","бумер-шутер","динамичная","демоны","боссы","сложная"],"aliases":["дум","дум 2016","doom","doom 2016"],"steam":379720,"wiki":null},{"id":"doometernal","title":"DOOM Eternal","year":2020,"series":"doom","genres":["Шутер"],"tags":["от первого лица","бумер-шутер","динамичная","демоны","боссы","сложная"],"aliases":["дум этернал","doom eternal"],"steam":782330,"wiki":null},{"id":"doomdarkages","title":"DOOM: The Dark Ages","year":2025,"series":"doom","genres":["Шутер"],"tags":["от первого лица","бумер-шутер","динамичная","демоны","боссы","тёмное фэнтези","средневековье"],"aliases":["дум дарк эйджес","doom the dark ages"],"steam":3017860,"wiki":null},{"id":"ultrakill","title":"ULTRAKILL","year":2020,"series":null,"genres":["Шутер"],"tags":["от первого лица","бумер-шутер","динамичная","сложная","ретро","инди","демоны"],"aliases":["ультракилл","ultrakill"],"steam":1229490,"wiki":null},{"id":"titanfall2","title":"Titanfall 2","year":2016,"series":"titanfall","genres":["Шутер"],"tags":["от первого лица","роботы","паркур","сюжетная","динамичная","научная фантастика","мультиплеер"],"aliases":["титанфол 2","titanfall 2"],"steam":1237970,"wiki":null},{"id":"halo3","title":"Halo 3","year":2007,"series":"halo","genres":["Шутер"],"tags":["от первого лица","научная фантастика","космос","пришельцы","кооператив","сюжетная","мультиплеер"],"aliases":["хало 3","хало","halo 3","halo"],"steam":976730,"wiki":null},{"id":"superhot","title":"Superhot","year":2016,"series":null,"genres":["Шутер","Головоломка"],"tags":["от первого лица","головоломки","короткая","инди","динамичная"],"aliases":["суперхот","superhot"],"steam":322500,"wiki":null},{"id":"borderlands2","title":"Borderlands 2","year":2012,"series":"borderlands","genres":["Шутер","RPG"],"tags":["лутер","кооператив","юмор","от первого лица","научная фантастика","мультяшная"],"aliases":["бордерлендс 2","borderlands 2"],"steam":49520,"wiki":null},{"id":"borderlands3","title":"Borderlands 3","year":2019,"series":"borderlands","genres":["Шутер","RPG"],"tags":["лутер","кооператив","юмор","от первого лица","научная фантастика","мультяшная","космос"],"aliases":["бордерлендс 3","бордерлендс","borderlands 3","borderlands"],"steam":397540,"wiki":null},{"id":"cs2","title":"Counter-Strike 2","year":2023,"series":"counter-strike","genres":["Шутер"],"tags":["тактический шутер","соревновательная","PvP","командная","киберспорт","от первого лица","онлайн","бесплатная"],"aliases":["кс 2","кс","ксго","кс го","контра","контр страйк","cs 2","cs2","cs go","csgo","counter-strike"],"steam":730,"wiki":null},{"id":"valorant","title":"Valorant","year":2020,"series":null,"genres":["Шутер"],"tags":["тактический шутер","геройский шутер","соревновательная","PvP","командная","киберспорт","от первого лица","бесплатная","онлайн"],"aliases":["валорант","valorant"],"steam":null,"wiki":"Valorant"},{"id":"r6siege","title":"Tom Clancy's Rainbow Six Siege","year":2015,"series":"rainbow-six","genres":["Шутер"],"tags":["тактический шутер","соревновательная","PvP","командная","киберспорт","от первого лица","онлайн"],"aliases":["радуга","радуга 6","осада","rainbow six siege","r6","r6s"],"steam":359550,"wiki":null},{"id":"overwatch2","title":"Overwatch 2","year":2022,"series":"overwatch","genres":["Шутер"],"tags":["геройский шутер","командная","PvP","соревновательная","от первого лица","бесплатная","онлайн","мультяшная","киберспорт"],"aliases":["овервотч 2","овервотч","overwatch 2","overwatch"],"steam":2357570,"wiki":null},{"id":"tf2","title":"Team Fortress 2","year":2007,"series":null,"genres":["Шутер"],"tags":["геройский шутер","командная","PvP","юмор","бесплатная","от первого лица","мультяшная","онлайн"],"aliases":["тим фортресс 2","тф2","team fortress 2","tf2"],"steam":440,"wiki":null},{"id":"marvelrivals","title":"Marvel Rivals","year":2024,"series":null,"genres":["Шутер"],"tags":["геройский шутер","супергерои","командная","PvP","бесплатная","от третьего лица","онлайн","мультяшная"],"aliases":["марвел райвалс","marvel rivals"],"steam":2767030,"wiki":null},{"id":"apex","title":"Apex Legends","year":2019,"series":"titanfall","genres":["Шутер"],"tags":["королевская битва","геройский шутер","PvP","командная","бесплатная","от первого лица","динамичная","онлайн"],"aliases":["апекс","апекс легендс","apex legends","apex"],"steam":1172470,"wiki":null},{"id":"fortnite","title":"Fortnite","year":2017,"series":null,"genres":["Шутер"],"tags":["королевская битва","строительство","PvP","бесплатная","от третьего лица","мультяшная","онлайн","мультиплеер"],"aliases":["фортнайт","fortnite"],"steam":null,"wiki":"Fortnite Battle Royale"},{"id":"pubg","title":"PUBG: Battlegrounds","year":2017,"series":null,"genres":["Шутер"],"tags":["королевская битва","PvP","реалистичная","онлайн","бесплатная","мультиплеер","тактика"],"aliases":["пубг","пабг","pubg","playerunknowns battlegrounds"],"steam":578080,"wiki":null},{"id":"codmw","title":"Call of Duty: Modern Warfare","year":2019,"series":"call-of-duty","genres":["Шутер"],"tags":["от первого лица","война","сюжетная","мультиплеер","PvP","динамичная","онлайн","кинематографичная"],"aliases":["колда","кол оф дьюти","call of duty","cod","modern warfare"],"steam":null,"wiki":"Call of Duty: Modern Warfare (2019 video game)"},{"id":"bf1","title":"Battlefield 1","year":2016,"series":"battlefield","genres":["Шутер"],"tags":["от первого лица","война","историческая","мультиплеер","PvP","командная","сюжетная"],"aliases":["батлфилд 1","бф1","battlefield 1","bf1"],"steam":1238840,"wiki":null},{"id":"bf6","title":"Battlefield 6","year":2025,"series":"battlefield","genres":["Шутер"],"tags":["от первого лица","война","мультиплеер","PvP","командная","онлайн"],"aliases":["батлфилд 6","бф6","battlefield 6","bf6"],"steam":2807960,"wiki":null},{"id":"arma3","title":"Arma 3","year":2013,"series":"arma","genres":["Шутер","Симулятор"],"tags":["война","реалистичная","тактика","открытый мир","сложная","мультиплеер","от первого лица","командная"],"aliases":["арма 3","арма","arma 3"],"steam":107410,"wiki":null},{"id":"tarkov","title":"Escape from Tarkov","year":2025,"series":null,"genres":["Шутер","Выживание"],"tags":["extraction-шутер","PvP","сложная","реалистичная","лутер","от первого лица","постсоветский сеттинг","онлайн"],"aliases":["тарков","побег из таркова","escape from tarkov","eft"],"steam":null,"wiki":"Escape from Tarkov"},{"id":"hunt","title":"Hunt: Showdown 1896","year":2019,"series":null,"genres":["Шутер","Хоррор"],"tags":["extraction-шутер","PvP","сложная","вестерн","охота на монстров","от первого лица","онлайн","мрачная"],"aliases":["хант","хант шоудаун","hunt showdown","hunt"],"steam":594650,"wiki":null},{"id":"arcraiders","title":"ARC Raiders","year":2025,"series":null,"genres":["Шутер"],"tags":["extraction-шутер","PvP","кооператив","научная фантастика","роботы","от третьего лица","лутер","онлайн"],"aliases":["арк рейдерс","arc raiders"],"steam":1808500,"wiki":null},{"id":"destiny2","title":"Destiny 2","year":2017,"series":null,"genres":["Шутер","MMO"],"tags":["лутер","онлайн","кооператив","PvP","научная фантастика","космос","рейды","от первого лица","бесплатная"],"aliases":["дестини 2","дестини","destiny 2"],"steam":1085660,"wiki":null},{"id":"warframe","title":"Warframe","year":2013,"series":null,"genres":["Экшен","Шутер"],"tags":["лутер","онлайн","кооператив","научная фантастика","космос","от третьего лица","паркур","бесплатная","гринд","ближний бой"],"aliases":["варфрейм","warframe"],"steam":230410,"wiki":null},{"id":"division2","title":"Tom Clancy's The Division 2","year":2019,"series":"the-division","genres":["Шутер","RPG"],"tags":["лутер","кооператив","от третьего лица","онлайн","эпидемия","открытый мир"],"aliases":["дивижн 2","division 2","the division 2"],"steam":2221490,"wiki":null},{"id":"helldivers2","title":"Helldivers 2","year":2024,"series":"helldivers","genres":["Шутер"],"tags":["кооператив","от третьего лица","научная фантастика","юмор","пришельцы","сложная","онлайн","командная"],"aliases":["хеллдайверс 2","хелдайверс","helldivers 2"],"steam":553850,"wiki":null},{"id":"drg","title":"Deep Rock Galactic","year":2020,"series":null,"genres":["Шутер"],"tags":["кооператив","от первого лица","научная фантастика","процедурная генерация","юмор","пришельцы","инди","онлайн"],"aliases":["дип рок галактик","deep rock galactic","drg"],"steam":548430,"wiki":null},{"id":"l4d2","title":"Left 4 Dead 2","year":2009,"series":"left-4-dead","genres":["Шутер","Хоррор"],"tags":["зомби","кооператив","от первого лица","динамичная","онлайн"],"aliases":["лефт фо дед 2","л4д2","left 4 dead 2","l4d2"],"steam":550,"wiki":null},{"id":"payday2","title":"Payday 2","year":2013,"series":"payday","genres":["Шутер"],"tags":["криминал","кооператив","от первого лица","стелс","онлайн"],"aliases":["пейдей 2","payday 2"],"steam":218620,"wiki":null},{"id":"spacemarine2","title":"Warhammer 40,000: Space Marine 2","year":2024,"series":"warhammer-40k","genres":["Шутер","Экшен"],"tags":["кооператив","от третьего лица","научная фантастика","ближний бой","пришельцы","мрачная","война"],"aliases":["спейс марин 2","вархаммер 40000","space marine 2","warhammer 40k"],"steam":2183900,"wiki":null},{"id":"vermintide2","title":"Warhammer: Vermintide 2","year":2018,"series":null,"genres":["Экшен"],"tags":["кооператив","от первого лица","ближний бой","тёмное фэнтези","сложная","онлайн"],"aliases":["верминтайд 2","vermintide 2"],"steam":552500,"wiki":null},{"id":"chivalry2","title":"Chivalry 2","year":2021,"series":null,"genres":["Экшен"],"tags":["средневековье","ближний бой","PvP","мультиплеер","юмор","от первого лица","онлайн"],"aliases":["шивалри 2","chivalry 2"],"steam":1824220,"wiki":null},{"id":"wot","title":"World of Tanks","year":2010,"series":null,"genres":["Экшен","Симулятор"],"tags":["танки","PvP","онлайн","командная","война","Вторая мировая","бесплатная","мультиплеер"],"aliases":["ворлд оф танкс","мир танков","танки","wot","world of tanks"],"steam":null,"wiki":"World of Tanks"},{"id":"warthunder","title":"War Thunder","year":2016,"series":null,"genres":["Симулятор","Экшен"],"tags":["танки","авиация","PvP","онлайн","война","Вторая мировая","бесплатная","реалистичная","мультиплеер"],"aliases":["вар тандер","вартандер","war thunder"],"steam":236390,"wiki":null},{"id":"re2","title":"Resident Evil 2","year":2019,"series":"resident-evil","genres":["Хоррор","Экшен"],"tags":["зомби","от третьего лица","головоломки","атмосферная","мрачная","сюжетная","кинематографичная"],"aliases":["резидент ивел 2","резик 2","обитель зла 2","resident evil 2","re2"],"steam":883710,"wiki":null},{"id":"re4","title":"Resident Evil 4","year":2023,"series":"resident-evil","genres":["Хоррор","Экшен"],"tags":["от третьего лица","головоломки","боссы","атмосферная","сюжетная","кинематографичная"],"aliases":["резидент ивел 4","резик 4","обитель зла 4","resident evil 4","re4"],"steam":2050650,"wiki":null},{"id":"re7","title":"Resident Evil 7: Biohazard","year":2017,"series":"resident-evil","genres":["Хоррор"],"tags":["от первого лица","атмосферная","головоломки","мрачная","сюжетная","VR"],"aliases":["резидент ивел 7","резик 7","биохазард","resident evil 7","re7"],"steam":418370,"wiki":null},{"id":"revillage","title":"Resident Evil Village","year":2021,"series":"resident-evil","genres":["Хоррор","Экшен"],"tags":["от первого лица","вампиры","атмосферная","головоломки","боссы","сюжетная","мрачная","кинематографичная"],"aliases":["резидент ивел виладж","резик 8","re village","re8","resident evil village","resident evil"],"steam":1196590,"wiki":null},{"id":"silenthill2","title":"Silent Hill 2","year":2024,"series":"silent-hill","genres":["Хоррор"],"tags":["психологическая","атмосферная","мрачная","сюжетная","от третьего лица","головоломки","несколько концовок","кинематографичная"],"aliases":["сайлент хилл 2","сайлент хилл","silent hill 2","silent hill"],"steam":2124490,"wiki":null},{"id":"silenthillf","title":"Silent Hill f","year":2025,"series":"silent-hill","genres":["Хоррор"],"tags":["психологическая","Япония","атмосферная","мрачная","от третьего лица","ближний бой","сюжетная"],"aliases":["сайлент хилл ф","silent hill f"],"steam":2947440,"wiki":null},{"id":"deadspace","title":"Dead Space","year":2023,"series":"dead-space","genres":["Хоррор","Шутер"],"tags":["космос","научная фантастика","пришельцы","от третьего лица","атмосферная","мрачная","кинематографичная"],"aliases":["дед спейс","мертвый космос","dead space"],"steam":1693980,"wiki":null},{"id":"alienisolation","title":"Alien: Isolation","year":2014,"series":null,"genres":["Хоррор"],"tags":["научная фантастика","космос","пришельцы","стелс","от первого лица","атмосферная","сложная"],"aliases":["чужой изоляция","чужой","alien isolation"],"steam":214490,"wiki":null},{"id":"outlast","title":"Outlast","year":2013,"series":"outlast","genres":["Хоррор"],"tags":["от первого лица","психологическая","стелс","мрачная","сюжетная","инди"],"aliases":["аутласт","outlast"],"steam":238320,"wiki":null},{"id":"amnesia","title":"Amnesia: The Dark Descent","year":2010,"series":"amnesia","genres":["Хоррор","Головоломка"],"tags":["от первого лица","лавкрафтовский ужас","психологическая","атмосферная","головоломки","мрачная","инди","стелс"],"aliases":["амнезия","amnesia","amnesia the dark descent"],"steam":57300,"wiki":null},{"id":"soma","title":"SOMA","year":2015,"series":null,"genres":["Хоррор","Приключение"],"tags":["научная фантастика","под водой","философская","от первого лица","психологическая","сюжетная","атмосферная","инди"],"aliases":["сома","soma"],"steam":282140,"wiki":null},{"id":"signalis","title":"Signalis","year":2022,"series":null,"genres":["Хоррор"],"tags":["научная фантастика","психологическая","ретро","вид сверху","инди","головоломки","мрачная","сюжетная","атмосферная"],"aliases":["сигналис","signalis"],"steam":1262350,"wiki":null},{"id":"littlenightmares","title":"Little Nightmares","year":2017,"series":"little-nightmares","genres":["Платформер","Хоррор","Головоломка"],"tags":["2D","мрачная","атмосферная","головоломки","короткая","инди","стелс"],"aliases":["литл найтмерс","маленькие кошмары","little nightmares"],"steam":424840,"wiki":null},{"id":"phasmophobia","title":"Phasmophobia","year":2020,"series":null,"genres":["Хоррор"],"tags":["кооператив","мистика","от первого лица","детектив","онлайн","инди","VR"],"aliases":["фазмофобия","фазма","phasmophobia"],"steam":739630,"wiki":null},{"id":"lethalcompany","title":"Lethal Company","year":2023,"series":null,"genres":["Хоррор"],"tags":["кооператив","юмор","научная фантастика","от первого лица","онлайн","инди","процедурная генерация"],"aliases":["летал компани","lethal company"],"steam":1966720,"wiki":null},{"id":"repo","title":"R.E.P.O.","year":2025,"series":null,"genres":["Хоррор"],"tags":["кооператив","юмор","физика","от первого лица","онлайн","инди","процедурная генерация"],"aliases":["репо","r.e.p.o.","repo"],"steam":3241660,"wiki":null},{"id":"dbd","title":"Dead by Daylight","year":2016,"series":null,"genres":["Хоррор"],"tags":["асимметричный мультиплеер","PvP","онлайн","от третьего лица","мультиплеер","мрачная"],"aliases":["дед бай дейлайт","дбд","dead by daylight","dbd"],"steam":381210,"wiki":null},{"id":"fnaf","title":"Five Nights at Freddy's","year":2014,"series":"fnaf","genres":["Хоррор"],"tags":["от первого лица","инди","короткая","роботы","мистика"],"aliases":["фнаф","пять ночей с фредди","five nights at freddys","fnaf"],"steam":319510,"wiki":null},{"id":"poppyplaytime","title":"Poppy Playtime","year":2021,"series":"poppy-playtime","genres":["Хоррор","Головоломка"],"tags":["от первого лица","головоломки","инди","короткая","мультяшная"],"aliases":["поппи плейтайм","хаги ваги","хагги вагги","poppy playtime"],"steam":1721470,"wiki":null},{"id":"helloneighbor","title":"Hello Neighbor","year":2017,"series":"hello-neighbor","genres":["Хоррор","Головоломка"],"tags":["стелс","головоломки","мультяшная","от первого лица","инди"],"aliases":["привет сосед","hello neighbor"],"steam":521890,"wiki":null},{"id":"dredge","title":"Dredge","year":2023,"series":null,"genres":["Приключение","Симулятор"],"tags":["рыбалка","лавкрафтовский ужас","море","исследование","атмосферная","инди","мистика"],"aliases":["дредж","dredge"],"steam":1562430,"wiki":null},{"id":"untildawn","title":"Until Dawn","year":2015,"series":null,"genres":["Интерактивное кино","Хоррор"],"tags":["выбор и последствия","несколько концовок","сюжетная","от третьего лица","психологическая","кинематографичная"],"aliases":["антил доун","дожить до рассвета","until dawn"],"steam":2172010,"wiki":null},{"id":"detroit","title":"Detroit: Become Human","year":2018,"series":null,"genres":["Интерактивное кино","Приключение"],"tags":["выбор и последствия","несколько концовок","сюжетная","научная фантастика","роботы","детектив","от третьего лица","эмоциональная","антиутопия","кинематографичная"],"aliases":["детройт","детройт стать человеком","detroit become human","detroit"],"steam":1222140,"wiki":null},{"id":"heavyrain","title":"Heavy Rain","year":2010,"series":null,"genres":["Интерактивное кино","Приключение"],"tags":["выбор и последствия","несколько концовок","сюжетная","детектив","психологическая","от третьего лица","мрачная","кинематографичная"],"aliases":["хеви рейн","проливной дождь","heavy rain"],"steam":960910,"wiki":null},{"id":"lifeisstrange","title":"Life is Strange","year":2015,"series":"life-is-strange","genres":["Приключение","Интерактивное кино"],"tags":["выбор и последствия","сюжетная","эмоциональная","путешествия во времени","школа","несколько концовок","мистика"],"aliases":["лайф из стрендж","жизнь странная штука","life is strange"],"steam":319630,"wiki":null},{"id":"twd","title":"The Walking Dead","year":2012,"series":"telltale-twd","genres":["Приключение","Интерактивное кино"],"tags":["зомби","выбор и последствия","сюжетная","эмоциональная","постапокалипсис"],"aliases":["ходячие мертвецы","the walking dead","twd"],"steam":207610,"wiki":null},{"id":"dispatch","title":"Dispatch","year":2025,"series":null,"genres":["Интерактивное кино","Приключение"],"tags":["супергерои","юмор","выбор и последствия","сюжетная","менеджмент"],"aliases":["диспатч","dispatch"],"steam":2592160,"wiki":null},{"id":"firewatch","title":"Firewatch","year":2016,"series":null,"genres":["Приключение"],"tags":["сюжетная","от первого лица","атмосферная","исследование","короткая","инди","эмоциональная"],"aliases":["файрвотч","firewatch"],"steam":383870,"wiki":null},{"id":"edithfinch","title":"What Remains of Edith Finch","year":2017,"series":null,"genres":["Приключение"],"tags":["сюжетная","эмоциональная","короткая","от первого лица","инди","мистика"],"aliases":["эдит финч","что осталось от эдит финч","what remains of edith finch"],"steam":501300,"wiki":null},{"id":"journey","title":"Journey","year":2012,"series":null,"genres":["Приключение"],"tags":["атмосферная","эмоциональная","короткая","исследование","инди","кооператив","онлайн","от третьего лица"],"aliases":["джорни","journey"],"steam":638230,"wiki":null},{"id":"gris","title":"Gris","year":2018,"series":null,"genres":["Платформер","Головоломка"],"tags":["2D","эмоциональная","атмосферная","рисованная","инди","короткая","расслабляющая"],"aliases":["грис","gris"],"steam":683320,"wiki":null},{"id":"brothers","title":"Brothers: A Tale of Two Sons","year":2013,"series":"brothers","genres":["Приключение","Головоломка"],"tags":["эмоциональная","сюжетная","фэнтези","головоломки","локальный кооператив","короткая"],"aliases":["братья","brothers a tale of two sons"],"steam":225080,"wiki":null},{"id":"ittakestwo","title":"It Takes Two","year":2021,"series":null,"genres":["Приключение","Платформер"],"tags":["кооператив","локальный кооператив","сюжетная","юмор","головоломки","эмоциональная","от третьего лица","кинематографичная"],"aliases":["ит тейкс ту","it takes two"],"steam":1426210,"wiki":null},{"id":"splitfiction","title":"Split Fiction","year":2025,"series":null,"genres":["Приключение","Платформер"],"tags":["кооператив","локальный кооператив","сюжетная","научная фантастика","фэнтези","головоломки","от третьего лица","юмор","кинематографичная"],"aliases":["сплит фикшн","split fiction"],"steam":2001120,"wiki":null},{"id":"awayout","title":"A Way Out","year":2018,"series":null,"genres":["Приключение","Экшен"],"tags":["кооператив","локальный кооператив","сюжетная","криминал","от третьего лица","эмоциональная","кинематографичная"],"aliases":["э вей аут","a way out"],"steam":1222700,"wiki":null},{"id":"pathologic2","title":"Pathologic 2","year":2019,"series":"pathologic","genres":["Приключение","Выживание"],"tags":["эпидемия","сложная","психологическая","сюжетная","от первого лица","мрачная","выбор и последствия","мистика","атмосферная"],"aliases":["мор","мор утопия","мор 2","pathologic 2","pathologic"],"steam":505230,"wiki":null},{"id":"ddlc","title":"Doki Doki Literature Club","year":2017,"series":null,"genres":["Визуальная новелла","Хоррор"],"tags":["психологическая","аниме","бесплатная","короткая","сюжетная","инди","школа"],"aliases":["доки доки","литературный клуб","ddlc","doki doki literature club"],"steam":698780,"wiki":null},{"id":"aceattorney","title":"Phoenix Wright: Ace Attorney Trilogy","year":2019,"series":"ace-attorney","genres":["Визуальная новелла","Приключение"],"tags":["детектив","юмор","аниме","сюжетная","головоломки"],"aliases":["эйс атторни","феникс райт","ace attorney","phoenix wright"],"steam":787480,"wiki":null},{"id":"steinsgate","title":"Steins;Gate","year":2009,"series":"steins-gate","genres":["Визуальная новелла"],"tags":["научная фантастика","путешествия во времени","аниме","сюжетная","несколько концовок","психологическая"],"aliases":["штайнс гейт","врата штейна","steins gate"],"steam":412830,"wiki":null},{"id":"portal","title":"Portal","year":2007,"series":"portal","genres":["Головоломка"],"tags":["от первого лица","физика","головоломки","юмор","научная фантастика","короткая"],"aliases":["портал","portal"],"steam":400,"wiki":null},{"id":"portal2","title":"Portal 2","year":2011,"series":"portal","genres":["Головоломка"],"tags":["от первого лица","физика","головоломки","юмор","научная фантастика","кооператив","сюжетная"],"aliases":["портал 2","portal 2"],"steam":620,"wiki":null},{"id":"talos","title":"The Talos Principle","year":2014,"series":null,"genres":["Головоломка"],"tags":["от первого лица","головоломки","философская","научная фантастика","атмосферная","роботы"],"aliases":["принцип талоса","талос","talos principle"],"steam":257510,"wiki":null},{"id":"witness","title":"The Witness","year":2016,"series":null,"genres":["Головоломка"],"tags":["от первого лица","головоломки","открытый мир","исследование","атмосферная","сложная","инди","философская"],"aliases":["зе витнесс","the witness"],"steam":210970,"wiki":null},{"id":"outerwilds","title":"Outer Wilds","year":2019,"series":null,"genres":["Приключение","Головоломка"],"tags":["исследование","космос","временная петля","научная фантастика","от первого лица","атмосферная","инди","философская","головоломки","эмоциональная"],"aliases":["аутер вайлдс","outer wilds"],"steam":753640,"wiki":null},{"id":"obradinn","title":"Return of the Obra Dinn","year":2018,"series":null,"genres":["Головоломка","Приключение"],"tags":["детектив","от первого лица","море","головоломки","инди","ретро","мистика"],"aliases":["обра динн","obra dinn","return of the obra dinn"],"steam":653530,"wiki":null},{"id":"forgottencity","title":"The Forgotten City","year":2021,"series":null,"genres":["Приключение","Головоломка"],"tags":["временная петля","детектив","историческая","мифология","сюжетная","от первого лица","выбор и последствия"],"aliases":["забытый город","the forgotten city"],"steam":874260,"wiki":null},{"id":"blueprince","title":"Blue Prince","year":2025,"series":null,"genres":["Головоломка","Рогалик"],"tags":["головоломки","от первого лица","исследование","инди","сложная","процедурная генерация","сюжетная"],"aliases":["блю принс","blue prince"],"steam":1569580,"wiki":null},{"id":"babaisyou","title":"Baba Is You","year":2019,"series":null,"genres":["Головоломка"],"tags":["головоломки","сложная","инди","2D"],"aliases":["баба из ю","baba is you"],"steam":736260,"wiki":null},{"id":"inside","title":"Inside","year":2016,"series":null,"genres":["Платформер","Головоломка"],"tags":["2D","мрачная","атмосферная","антиутопия","головоломки","короткая","инди"],"aliases":["инсайд","inside"],"steam":304430,"wiki":null},{"id":"limbo","title":"Limbo","year":2010,"series":null,"genres":["Платформер","Головоломка"],"tags":["2D","мрачная","атмосферная","головоломки","короткая","инди"],"aliases":["лимбо","limbo"],"steam":48000,"wiki":null},{"id":"papersplease","title":"Papers, Please","year":2013,"series":null,"genres":["Симулятор","Головоломка"],"tags":["антиутопия","выбор и последствия","несколько концовок","пиксельная графика","инди","мрачная","сюжетная","атмосферная","менеджмент","эмоциональная"],"aliases":["паперс плиз","документы пожалуйста","papers please"],"steam":239030,"wiki":null},{"id":"tetriseffect","title":"Tetris Effect: Connected","year":2020,"series":"tetris","genres":["Головоломка","Ритм"],"tags":["музыка","расслабляющая","VR","казуальная"],"aliases":["тетрис","tetris effect","tetris"],"steam":1003590,"wiki":null},{"id":"unpacking","title":"Unpacking","year":2021,"series":null,"genres":["Головоломка","Симулятор"],"tags":["уютная","расслабляющая","короткая","пиксельная графика","инди","сюжетная"],"aliases":["анпакинг","распаковка","unpacking"],"steam":1135690,"wiki":null},{"id":"dorfromantik","title":"Dorfromantik","year":2022,"series":null,"genres":["Головоломка","Стратегия"],"tags":["расслабляющая","уютная","строительство","инди","казуальная","процедурная генерация"],"aliases":["дорфромантик","dorfromantik"],"steam":1455840,"wiki":null},{"id":"humanfallflat","title":"Human: Fall Flat","year":2016,"series":null,"genres":["Головоломка","Вечеринка"],"tags":["физика","кооператив","юмор","головоломки","инди"],"aliases":["хьюман фол флэт","human fall flat"],"steam":477160,"wiki":null},{"id":"goose","title":"Untitled Goose Game","year":2019,"series":null,"genres":["Головоломка","Приключение"],"tags":["юмор","стелс","короткая","инди","казуальная","животные"],"aliases":["гусь","игра про гуся","untitled goose game"],"steam":837470,"wiki":null},{"id":"hollowknight","title":"Hollow Knight","year":2017,"series":"hollow-knight","genres":["Платформер","Экшен"],"tags":["метроидвания","2D","рисованная","сложная","атмосферная","исследование","боссы","инди","мрачная","souls-like"],"aliases":["холлоу найт","холлоу кнайт","полый рыцарь","hollow knight"],"steam":367520,"wiki":null},{"id":"silksong","title":"Hollow Knight: Silksong","year":2025,"series":"hollow-knight","genres":["Платформер","Экшен"],"tags":["метроидвания","2D","рисованная","сложная","атмосферная","исследование","боссы","инди","souls-like"],"aliases":["силксонг","silksong"],"steam":1030300,"wiki":null},{"id":"ori","title":"Ori and the Blind Forest","year":2015,"series":"ori","genres":["Платформер","Приключение"],"tags":["метроидвания","2D","эмоциональная","атмосферная","исследование","сложная","рисованная"],"aliases":["ори","ori","ori and the blind forest"],"steam":387290,"wiki":null},{"id":"ori2","title":"Ori and the Will of the Wisps","year":2020,"series":"ori","genres":["Платформер","Приключение"],"tags":["метроидвания","2D","эмоциональная","атмосферная","исследование","боссы","рисованная"],"aliases":["ори 2","ori 2","ori and the will of the wisps"],"steam":1057090,"wiki":null},{"id":"blasphemous","title":"Blasphemous","year":2019,"series":"blasphemous","genres":["Платформер","Экшен"],"tags":["метроидвания","2D","пиксельная графика","мрачная","сложная","souls-like","боссы","инди","ближний бой"],"aliases":["бласфемос","blasphemous"],"steam":774361,"wiki":null},{"id":"metroiddread","title":"Metroid Dread","year":2021,"series":"metroid","genres":["Платформер","Экшен"],"tags":["метроидвания","2D","научная фантастика","пришельцы","боссы","сложная","исследование"],"aliases":["метроид дред","метроид","metroid dread","metroid"],"steam":null,"wiki":"Metroid Dread"},{"id":"potlc","title":"Prince of Persia: The Lost Crown","year":2024,"series":"prince-of-persia","genres":["Платформер","Экшен"],"tags":["метроидвания","2D","мифология","путешествия во времени","боссы","исследование","ближний бой"],"aliases":["принц персии","prince of persia","lost crown"],"steam":2751000,"wiki":null},{"id":"animalwell","title":"Animal Well","year":2024,"series":null,"genres":["Платформер","Головоломка"],"tags":["метроидвания","2D","пиксельная графика","головоломки","исследование","атмосферная","инди","животные"],"aliases":["энимал велл","animal well"],"steam":813230,"wiki":null},{"id":"celeste","title":"Celeste","year":2018,"series":null,"genres":["Платформер"],"tags":["2D","пиксельная графика","сложная","эмоциональная","сюжетная","инди"],"aliases":["селеста","celeste"],"steam":504230,"wiki":null},{"id":"cuphead","title":"Cuphead","year":2017,"series":null,"genres":["Платформер","Экшен"],"tags":["2D","рисованная","сложная","боссы","кооператив","локальный кооператив","ретро","инди"],"aliases":["капхед","cuphead"],"steam":268910,"wiki":null},{"id":"meatboy","title":"Super Meat Boy","year":2010,"series":null,"genres":["Платформер"],"tags":["2D","сложная","инди","динамичная","ретро","короткая"],"aliases":["супер мит бой","super meat boy"],"steam":40800,"wiki":null},{"id":"shovelknight","title":"Shovel Knight","year":2014,"series":null,"genres":["Платформер","Экшен"],"tags":["2D","пиксельная графика","ретро","инди","боссы","фэнтези"],"aliases":["шовел найт","shovel knight"],"steam":250760,"wiki":null},{"id":"rainworld","title":"Rain World","year":2017,"series":null,"genres":["Платформер","Выживание"],"tags":["2D","пиксельная графика","сложная","атмосферная","исследование","животные","инди"],"aliases":["рейн ворлд","rain world"],"steam":312520,"wiki":null},{"id":"geometrydash","title":"Geometry Dash","year":2013,"series":null,"genres":["Платформер","Ритм"],"tags":["музыка","сложная","2D","инди","динамичная"],"aliases":["геометри дэш","geometry dash"],"steam":322170,"wiki":null},{"id":"marioodyssey","title":"Super Mario Odyssey","year":2017,"series":"mario","genres":["Платформер"],"tags":["для всей семьи","исследование","мультяшная","от третьего лица"],"aliases":["марио одиссей","марио","super mario odyssey","mario"],"steam":null,"wiki":"Super Mario Odyssey"},{"id":"astrobot","title":"Astro Bot","year":2024,"series":"astro-bot","genres":["Платформер"],"tags":["для всей семьи","роботы","мультяшная","исследование","от третьего лица","юмор"],"aliases":["астро бот","astro bot"],"steam":null,"wiki":"Astro Bot"},{"id":"raymanlegends","title":"Rayman Legends","year":2013,"series":"rayman","genres":["Платформер"],"tags":["2D","рисованная","кооператив","локальный кооператив","для всей семьи","музыка"],"aliases":["рейман","rayman legends","rayman"],"steam":242550,"wiki":null},{"id":"crash","title":"Crash Bandicoot N. Sane Trilogy","year":2017,"series":"crash","genres":["Платформер"],"tags":["ретро","сложная","мультяшная","для всей семьи","от третьего лица"],"aliases":["крэш","краш","crash bandicoot"],"steam":731490,"wiki":null},{"id":"sonicmania","title":"Sonic Mania","year":2017,"series":"sonic","genres":["Платформер"],"tags":["2D","пиксельная графика","ретро","динамичная","для всей семьи"],"aliases":["соник мания","соник","sonic mania","sonic"],"steam":584400,"wiki":null},{"id":"psychonauts2","title":"Psychonauts 2","year":2021,"series":"psychonauts","genres":["Платформер","Приключение"],"tags":["юмор","психологическая","сюжетная","мультяшная","от третьего лица","исследование"],"aliases":["психонавты 2","psychonauts 2"],"steam":607080,"wiki":null},{"id":"hatintime","title":"A Hat in Time","year":2017,"series":null,"genres":["Платформер"],"tags":["юмор","мультяшная","инди","исследование","от третьего лица"],"aliases":["э хэт ин тайм","a hat in time"],"steam":253230,"wiki":null},{"id":"ratchet","title":"Ratchet & Clank: Rift Apart","year":2021,"series":"ratchet-clank","genres":["Экшен","Платформер"],"tags":["научная фантастика","юмор","мультяшная","для всей семьи","от третьего лица","космос","роботы"],"aliases":["рэтчет и кланк","рэтчет","ratchet and clank"],"steam":1895880,"wiki":null},{"id":"hades","title":"Hades","year":2020,"series":"hades","genres":["Экшен","Рогалик"],"tags":["греческая мифология","мифология","изометрия","динамичная","сюжетная","боссы","инди","рисованная","ближний бой","процедурная генерация"],"aliases":["хейдс","хадес","аид","hades"],"steam":1145360,"wiki":null},{"id":"hades2","title":"Hades II","year":2025,"series":"hades","genres":["Экшен","Рогалик"],"tags":["греческая мифология","мифология","изометрия","динамичная","сюжетная","боссы","инди","рисованная","магия","процедурная генерация"],"aliases":["хейдс 2","хадес 2","hades 2"],"steam":1145350,"wiki":null},{"id":"deadcells","title":"Dead Cells","year":2018,"series":null,"genres":["Экшен","Рогалик","Платформер"],"tags":["метроидвания","2D","пиксельная графика","динамичная","сложная","инди","боссы","ближний бой"],"aliases":["дед селлс","dead cells"],"steam":588650,"wiki":null},{"id":"isaac","title":"The Binding of Isaac: Rebirth","year":2014,"series":null,"genres":["Экшен","Рогалик"],"tags":["вид сверху","2D","пиксельная графика","сложная","мрачная","инди","процедурная генерация","боссы"],"aliases":["айзек","исаак","binding of isaac","isaac"],"steam":250900,"wiki":null},{"id":"gungeon","title":"Enter the Gungeon","year":2016,"series":null,"genres":["Экшен","Рогалик","Шутер"],"tags":["вид сверху","пиксельная графика","сложная","инди","кооператив","боссы","юмор","процедурная генерация"],"aliases":["ганжен","enter the gungeon","etg"],"steam":311690,"wiki":null},{"id":"ror2","title":"Risk of Rain 2","year":2020,"series":null,"genres":["Экшен","Рогалик","Шутер"],"tags":["от третьего лица","кооператив","научная фантастика","процедурная генерация","динамичная","инди","боссы"],"aliases":["риск оф рейн 2","risk of rain 2","ror2"],"steam":632360,"wiki":null},{"id":"returnal","title":"Returnal","year":2021,"series":null,"genres":["Шутер","Рогалик","Экшен"],"tags":["от третьего лица","научная фантастика","временная петля","сложная","мрачная","психологическая","боссы","динамичная","пришельцы"],"aliases":["ретурнал","returnal"],"steam":1649240,"wiki":null},{"id":"vampsurv","title":"Vampire Survivors","year":2022,"series":null,"genres":["Экшен","Рогалик"],"tags":["вид сверху","пиксельная графика","инди","казуальная","тёмное фэнтези","процедурная генерация","короткая","ретро"],"aliases":["вампир сурвайворс","vampire survivors"],"steam":1794680,"wiki":null},{"id":"brotato","title":"Brotato","year":2023,"series":null,"genres":["Экшен","Рогалик"],"tags":["вид сверху","инди","казуальная","юмор","короткая","динамичная"],"aliases":["бротато","brotato"],"steam":1942280,"wiki":null},{"id":"spelunky2","title":"Spelunky 2","year":2020,"series":null,"genres":["Платформер","Рогалик"],"tags":["2D","сложная","процедурная генерация","исследование","кооператив","инди"],"aliases":["спелунки 2","spelunky 2"],"steam":418530,"wiki":null},{"id":"noita","title":"Noita","year":2020,"series":null,"genres":["Экшен","Рогалик"],"tags":["пиксельная графика","физика","магия","сложная","процедурная генерация","2D","инди","исследование"],"aliases":["ноита","noita"],"steam":881100,"wiki":null},{"id":"cultofthelamb","title":"Cult of the Lamb","year":2022,"series":null,"genres":["Экшен","Рогалик","Симулятор"],"tags":["менеджмент","строительство","юмор","мрачная","инди","мультяшная","вид сверху"],"aliases":["культ ягненка","cult of the lamb"],"steam":1313140,"wiki":null},{"id":"darkestdungeon","title":"Darkest Dungeon","year":2016,"series":null,"genres":["RPG","Стратегия","Рогалик"],"tags":["пошаговая","тёмное фэнтези","лавкрафтовский ужас","сложная","мрачная","менеджмент","рисованная","инди","партия","тактика"],"aliases":["даркест данжен","darkest dungeon"],"steam":262060,"wiki":null},{"id":"ftl","title":"FTL: Faster Than Light","year":2012,"series":null,"genres":["Стратегия","Рогалик","Симулятор"],"tags":["космос","научная фантастика","менеджмент","сложная","пиксельная графика","инди","тактика","процедурная генерация"],"aliases":["фтл","ftl","faster than light"],"steam":212680,"wiki":null},{"id":"intothebreach","title":"Into the Breach","year":2018,"series":null,"genres":["Стратегия","Рогалик"],"tags":["пошаговая","тактика","роботы","научная фантастика","пиксельная графика","инди","головоломки","короткая"],"aliases":["инту зе брич","into the breach"],"steam":590380,"wiki":null},{"id":"slaythespire","title":"Slay the Spire","year":2019,"series":null,"genres":["Карточная","Рогалик","Стратегия"],"tags":["колодострой","пошаговая","инди","процедурная генерация","боссы","сложная"],"aliases":["слей зе спаер","slay the spire","sts"],"steam":646570,"wiki":null},{"id":"balatro","title":"Balatro","year":2024,"series":null,"genres":["Карточная","Рогалик"],"tags":["колодострой","пиксельная графика","инди","казуальная","пошаговая"],"aliases":["балатро","balatro"],"steam":2379780,"wiki":null},{"id":"inscryption","title":"Inscryption","year":2021,"series":null,"genres":["Карточная","Рогалик","Головоломка"],"tags":["колодострой","мрачная","головоломки","инди","сюжетная","мистика","атмосферная"],"aliases":["инскрипшн","inscryption"],"steam":1092790,"wiki":null},{"id":"monstertrain","title":"Monster Train","year":2020,"series":null,"genres":["Карточная","Рогалик","Стратегия"],"tags":["колодострой","пошаговая","демоны","инди","тактика"],"aliases":["монстр трейн","monster train"],"steam":1102190,"wiki":null},{"id":"loophero","title":"Loop Hero","year":2021,"series":null,"genres":["Рогалик","Стратегия","Карточная"],"tags":["колодострой","пиксельная графика","тёмное фэнтези","инди","казуальная"],"aliases":["луп хиро","loop hero"],"steam":1282730,"wiki":null},{"id":"blackbook","title":"Black Book","year":2021,"series":null,"genres":["RPG","Карточная"],"tags":["колодострой","славянская мифология","пошаговая","мрачная","сюжетная","инди","мифология"],"aliases":["черная книга","black book"],"steam":1138660,"wiki":null},{"id":"hearthstone","title":"Hearthstone","year":2014,"series":"warcraft","genres":["Карточная","Стратегия"],"tags":["ККИ","PvP","онлайн","бесплатная","фэнтези","соревновательная","казуальная"],"aliases":["хартстоун","хс","hearthstone","hs"],"steam":null,"wiki":"Hearthstone"},{"id":"mtgarena","title":"Magic: The Gathering Arena","year":2019,"series":null,"genres":["Карточная","Стратегия"],"tags":["ККИ","PvP","онлайн","бесплатная","фэнтези","соревновательная","сложная"],"aliases":["мтг","магия","mtg arena","magic the gathering"],"steam":2141910,"wiki":null},{"id":"minecraft","title":"Minecraft","year":2011,"series":null,"genres":["Песочница","Выживание"],"tags":["крафт","строительство","исследование","кооператив","процедурная генерация","открытый мир","для всей семьи"],"aliases":["майнкрафт","майн","minecraft"],"steam":null,"wiki":"Minecraft"},{"id":"terraria","title":"Terraria","year":2011,"series":null,"genres":["Песочница","Экшен","Выживание"],"tags":["2D","пиксельная графика","крафт","строительство","исследование","боссы","кооператив","процедурная генерация","инди","открытый мир"],"aliases":["террария","terraria"],"steam":105600,"wiki":null},{"id":"valheim","title":"Valheim","year":2021,"series":null,"genres":["Выживание","Песочница"],"tags":["викинги","скандинавская мифология","крафт","строительство","кооператив","открытый мир","исследование","боссы","процедурная генерация","инди"],"aliases":["вальхейм","valheim"],"steam":892970,"wiki":null},{"id":"dst","title":"Don't Starve Together","year":2016,"series":"dont-starve","genres":["Выживание"],"tags":["крафт","рисованная","мрачная","кооператив","сложная","процедурная генерация","инди"],"aliases":["донт старв","не голодай","dont starve together","dont starve","dst"],"steam":322330,"wiki":null},{"id":"subnautica","title":"Subnautica","year":2018,"series":"subnautica","genres":["Выживание","Приключение"],"tags":["под водой","море","исследование","крафт","строительство","научная фантастика","атмосферная","открытый мир","от первого лица","пришельцы"],"aliases":["сабнатика","subnautica"],"steam":264710,"wiki":null},{"id":"sonsoftheforest","title":"Sons of the Forest","year":2024,"series":"the-forest","genres":["Выживание","Хоррор"],"tags":["крафт","строительство","кооператив","открытый мир","от первого лица","мрачная"],"aliases":["санс оф зе форест","the forest","sons of the forest"],"steam":1326470,"wiki":null},{"id":"rust","title":"Rust","year":2018,"series":null,"genres":["Выживание","Песочница"],"tags":["PvP","мультиплеер","крафт","строительство","онлайн","открытый мир","сложная","от первого лица"],"aliases":["раст","rust"],"steam":252490,"wiki":null},{"id":"dayz","title":"DayZ","year":2018,"series":null,"genres":["Выживание","Шутер"],"tags":["зомби","PvP","мультиплеер","онлайн","открытый мир","сложная","реалистичная","постапокалипсис","от первого лица"],"aliases":["дейзи","дэйз","dayz"],"steam":221100,"wiki":null},{"id":"7dtd","title":"7 Days to Die","year":2024,"series":null,"genres":["Выживание","Песочница"],"tags":["зомби","крафт","строительство","кооператив","открытый мир","от первого лица","постапокалипсис"],"aliases":["7 дней чтобы умереть","7 days to die","7dtd"],"steam":251570,"wiki":null},{"id":"zomboid","title":"Project Zomboid","year":2013,"series":null,"genres":["Выживание","Симулятор"],"tags":["зомби","изометрия","сложная","крафт","строительство","кооператив","реалистичная","инди","постапокалипсис"],"aliases":["зомбоид","проджект зомбоид","project zomboid"],"steam":108600,"wiki":null},{"id":"raft","title":"Raft","year":2022,"series":null,"genres":["Выживание"],"tags":["море","крафт","строительство","кооператив","от первого лица","инди","расслабляющая"],"aliases":["рафт","плот","raft"],"steam":648800,"wiki":null},{"id":"grounded","title":"Grounded","year":2022,"series":null,"genres":["Выживание"],"tags":["крафт","строительство","кооператив","юмор","от первого лица","животные","исследование"],"aliases":["граундед","grounded"],"steam":962130,"wiki":null},{"id":"palworld","title":"Palworld","year":2024,"series":null,"genres":["Выживание","Экшен"],"tags":["приручение существ","крафт","строительство","кооператив","открытый мир","автоматизация","юмор","от третьего лица"],"aliases":["палворлд","покемоны с пушками","palworld"],"steam":1623730,"wiki":null},{"id":"enshrouded","title":"Enshrouded","year":2024,"series":null,"genres":["Выживание","RPG"],"tags":["крафт","строительство","кооператив","фэнтези","открытый мир","исследование","от третьего лица"],"aliases":["эншраудед","enshrouded"],"steam":1203620,"wiki":null},{"id":"nms","title":"No Man's Sky","year":2016,"series":null,"genres":["Выживание","Приключение"],"tags":["космос","научная фантастика","исследование","процедурная генерация","крафт","строительство","кооператив","открытый мир","от первого лица"],"aliases":["ноу мэнс скай","no mans sky","nms"],"steam":275850,"wiki":null},{"id":"arkse","title":"ARK: Survival Evolved","year":2017,"series":"ark","genres":["Выживание"],"tags":["динозавры","крафт","строительство","мультиплеер","открытый мир","онлайн","приручение существ"],"aliases":["арк","ark survival evolved","ark"],"steam":346110,"wiki":null},{"id":"thelongdark","title":"The Long Dark","year":2017,"series":null,"genres":["Выживание"],"tags":["зима","реалистичная","сложная","атмосферная","от первого лица","исследование","инди","крафт"],"aliases":["зе лонг дарк","долгая тьма","the long dark"],"steam":305620,"wiki":null},{"id":"greenhell","title":"Green Hell","year":2019,"series":null,"genres":["Выживание"],"tags":["реалистичная","сложная","крафт","кооператив","от первого лица","строительство"],"aliases":["грин хелл","зеленый ад","green hell"],"steam":815370,"wiki":null},{"id":"vrising","title":"V Rising","year":2024,"series":null,"genres":["Выживание","Экшен"],"tags":["вампиры","крафт","строительство","кооператив","PvP","изометрия","боссы","мрачная"],"aliases":["ви райзинг","v rising"],"steam":1604030,"wiki":null},{"id":"corekeeper","title":"Core Keeper","year":2024,"series":null,"genres":["Песочница","Выживание"],"tags":["крафт","строительство","кооператив","вид сверху","пиксельная графика","исследование","боссы","инди"],"aliases":["кор кипер","core keeper"],"steam":1621690,"wiki":null},{"id":"roblox","title":"Roblox","year":2006,"series":null,"genres":["Песочница","Вечеринка"],"tags":["мультиплеер","онлайн","бесплатная","для всей семьи","строительство","казуальная"],"aliases":["роблокс","roblox"],"steam":null,"wiki":"Roblox"},{"id":"gmod","title":"Garry's Mod","year":2006,"series":null,"genres":["Песочница"],"tags":["физика","мультиплеер","юмор","строительство","от первого лица"],"aliases":["гаррис мод","гмод","garrys mod","gmod"],"steam":4000,"wiki":null},{"id":"civ6","title":"Sid Meier's Civilization VI","year":2016,"series":"civilization","genres":["Стратегия"],"tags":["пошаговая","4X","историческая","глобальная стратегия","мультиплеер"],"aliases":["цивилизация 6","цива 6","цивилизация","цива","civilization 6","civ 6"],"steam":289070,"wiki":null},{"id":"civ7","title":"Sid Meier's Civilization VII","year":2025,"series":"civilization","genres":["Стратегия"],"tags":["пошаговая","4X","историческая","глобальная стратегия","мультиплеер"],"aliases":["цивилизация 7","цива 7","civilization 7","civ 7"],"steam":1295660,"wiki":null},{"id":"stellaris","title":"Stellaris","year":2016,"series":null,"genres":["Стратегия"],"tags":["4X","космос","научная фантастика","глобальная стратегия","пришельцы","мультиплеер"],"aliases":["стелларис","stellaris"],"steam":281990,"wiki":null},{"id":"ck3","title":"Crusader Kings III","year":2020,"series":"crusader-kings","genres":["Стратегия","RPG"],"tags":["глобальная стратегия","средневековье","историческая","нелинейная","сложная","менеджмент"],"aliases":["крусейдер кингс 3","ck3","crusader kings 3"],"steam":1158310,"wiki":null},{"id":"eu4","title":"Europa Universalis IV","year":2013,"series":null,"genres":["Стратегия"],"tags":["глобальная стратегия","историческая","экономика","сложная","мультиплеер"],"aliases":["европа универсалис 4","европка","eu4","europa universalis 4"],"steam":236850,"wiki":null},{"id":"hoi4","title":"Hearts of Iron IV","year":2016,"series":null,"genres":["Стратегия"],"tags":["глобальная стратегия","Вторая мировая","война","историческая","сложная","мультиплеер"],"aliases":["хойка","хои 4","hoi4","hoi 4","hearts of iron 4"],"steam":394360,"wiki":null},{"id":"twwh3","title":"Total War: Warhammer III","year":2022,"series":"total-war","genres":["Стратегия"],"tags":["пошаговая","RTS","фэнтези","тёмное фэнтези","тактика","война","демоны","магия"],"aliases":["тотал вар вархаммер 3","total war warhammer 3","twwh3"],"steam":1142710,"wiki":null},{"id":"shogun2","title":"Total War: Shogun 2","year":2011,"series":"total-war","genres":["Стратегия"],"tags":["пошаговая","RTS","Япония","самураи","историческая","тактика","война"],"aliases":["сёгун 2","шогун 2","total war shogun 2","shogun 2"],"steam":null,"wiki":"Total War: Shogun 2"},{"id":"sc2","title":"StarCraft II","year":2010,"series":"starcraft","genres":["Стратегия"],"tags":["RTS","научная фантастика","космос","пришельцы","соревновательная","киберспорт","мультиплеер","сюжетная"],"aliases":["старкрафт 2","старкрафт","starcraft 2","sc2"],"steam":null,"wiki":"StarCraft II: Wings of Liberty"},{"id":"wc3","title":"Warcraft III","year":2002,"series":"warcraft","genres":["Стратегия"],"tags":["RTS","фэнтези","сюжетная","мультиплеер","магия"],"aliases":["варкрафт 3","варик","warcraft 3","wc3"],"steam":null,"wiki":"Warcraft III: Reign of Chaos"},{"id":"aoe2","title":"Age of Empires II: Definitive Edition","year":2019,"series":"age-of-empires","genres":["Стратегия"],"tags":["RTS","историческая","средневековье","мультиплеер","экономика","соревновательная"],"aliases":["эпоха империй 2","эйдж оф эмпайрс","age of empires 2","aoe2"],"steam":813780,"wiki":null},{"id":"aoe4","title":"Age of Empires IV","year":2021,"series":"age-of-empires","genres":["Стратегия"],"tags":["RTS","историческая","средневековье","мультиплеер","экономика","соревновательная"],"aliases":["эпоха империй 4","age of empires 4","aoe4"],"steam":1466860,"wiki":null},{"id":"coh2","title":"Company of Heroes 2","year":2013,"series":"company-of-heroes","genres":["Стратегия"],"tags":["RTS","Вторая мировая","война","тактика","мультиплеер","историческая"],"aliases":["компани оф хироус 2","company of heroes 2","coh2"],"steam":231430,"wiki":null},{"id":"xcom2","title":"XCOM 2","year":2016,"series":"xcom","genres":["Стратегия"],"tags":["пошаговая","тактика","пришельцы","научная фантастика","сложная","менеджмент"],"aliases":["икском 2","xcom 2","xcom"],"steam":268500,"wiki":null},{"id":"homm3","title":"Heroes of Might and Magic III","year":1999,"series":"heroes","genres":["Стратегия"],"tags":["пошаговая","фэнтези","тактика","магия","мультиплеер","исследование"],"aliases":["герои 3","героев 3","герои меча и магии 3","homm3","homm 3","heroes 3"],"steam":297000,"wiki":null},{"id":"kingsbounty","title":"King's Bounty: The Legend","year":2008,"series":"kings-bounty","genres":["Стратегия","RPG"],"tags":["пошаговая","фэнтези","тактика","магия","исследование","юмор"],"aliases":["кингс баунти","легенда о рыцаре","kings bounty"],"steam":25900,"wiki":null},{"id":"desperados3","title":"Desperados III","year":2020,"series":"desperados","genres":["Стратегия"],"tags":["стелс","тактика","вестерн","изометрия","сюжетная","сложная"],"aliases":["десперадос 3","desperados 3"],"steam":610370,"wiki":null},{"id":"frostpunk","title":"Frostpunk","year":2018,"series":"frostpunk","genres":["Стратегия","Симулятор","Выживание"],"tags":["градостроение","менеджмент","мрачная","стимпанк","выбор и последствия","зима","сложная","эмоциональная"],"aliases":["фростпанк","frostpunk"],"steam":323190,"wiki":null},{"id":"frostpunk2","title":"Frostpunk 2","year":2024,"series":"frostpunk","genres":["Стратегия","Симулятор"],"tags":["градостроение","менеджмент","мрачная","стимпанк","выбор и последствия","зима","сложная"],"aliases":["фростпанк 2","frostpunk 2"],"steam":1601580,"wiki":null},{"id":"cities","title":"Cities: Skylines","year":2015,"series":"cities-skylines","genres":["Симулятор","Стратегия"],"tags":["градостроение","менеджмент","экономика","расслабляющая","строительство"],"aliases":["ситис скайлайнс","ситис","cities skylines"],"steam":255710,"wiki":null},{"id":"anno1800","title":"Anno 1800","year":2019,"series":"anno","genres":["Стратегия","Симулятор"],"tags":["градостроение","экономика","историческая","менеджмент","RTS","море"],"aliases":["анно 1800","анно","anno 1800"],"steam":916440,"wiki":null},{"id":"tropico6","title":"Tropico 6","year":2019,"series":"tropico","genres":["Стратегия","Симулятор"],"tags":["градостроение","юмор","экономика","менеджмент"],"aliases":["тропико 6","тропико","tropico 6"],"steam":492720,"wiki":null},{"id":"manorlords","title":"Manor Lords","year":2024,"series":null,"genres":["Стратегия","Симулятор"],"tags":["градостроение","средневековье","историческая","менеджмент","экономика","реалистичная","война"],"aliases":["манор лордс","manor lords"],"steam":1363080,"wiki":null},{"id":"againstthestorm","title":"Against the Storm","year":2023,"series":null,"genres":["Стратегия","Рогалик"],"tags":["градостроение","менеджмент","фэнтези","тёмное фэнтези","инди","процедурная генерация","сложная"],"aliases":["эгейнст зе сторм","against the storm"],"steam":1336490,"wiki":null},{"id":"factorio","title":"Factorio","year":2020,"series":null,"genres":["Стратегия","Симулятор"],"tags":["автоматизация","строительство","менеджмент","научная фантастика","вид сверху","сложная","кооператив","инди"],"aliases":["факторио","factorio"],"steam":427520,"wiki":null},{"id":"satisfactory","title":"Satisfactory","year":2024,"series":null,"genres":["Симулятор","Стратегия"],"tags":["автоматизация","строительство","от первого лица","кооператив","научная фантастика","исследование","менеджмент"],"aliases":["сатисфактори","satisfactory"],"steam":526870,"wiki":null},{"id":"oni","title":"Oxygen Not Included","year":2019,"series":null,"genres":["Симулятор","Стратегия","Выживание"],"tags":["колонии","менеджмент","научная фантастика","2D","сложная","инди","космос","строительство"],"aliases":["оксиджен нот инклудед","oxygen not included","oni"],"steam":457140,"wiki":null},{"id":"rimworld","title":"RimWorld","year":2018,"series":null,"genres":["Стратегия","Симулятор","Выживание"],"tags":["колонии","менеджмент","научная фантастика","вид сверху","процедурная генерация","сложная","инди","строительство","крафт","нелинейная"],"aliases":["римворлд","rimworld"],"steam":294100,"wiki":null},{"id":"thiswarofmine","title":"This War of Mine","year":2014,"series":null,"genres":["Выживание","Стратегия"],"tags":["война","мрачная","эмоциональная","менеджмент","крафт","выбор и последствия","2D","инди"],"aliases":["эта война моя","this war of mine"],"steam":282070,"wiki":null},{"id":"pvz","title":"Plants vs. Zombies","year":2009,"series":"pvz","genres":["Стратегия"],"tags":["tower defense","зомби","казуальная","юмор","для всей семьи","мультяшная"],"aliases":["растения против зомби","plants vs zombies","pvz"],"steam":3590,"wiki":null},{"id":"btd6","title":"Bloons TD 6","year":2018,"series":"bloons","genres":["Стратегия"],"tags":["tower defense","казуальная","кооператив","мультяшная","для всей семьи"],"aliases":["блунс","шарики","bloons td 6","btd6"],"steam":960090,"wiki":null},{"id":"stardew","title":"Stardew Valley","year":2016,"series":null,"genres":["Симулятор","RPG"],"tags":["фермерство","симулятор жизни","уютная","расслабляющая","пиксельная графика","кооператив","крафт","романы","рыбалка","инди"],"aliases":["стардью","стардью валли","stardew valley","stardew"],"steam":413150,"wiki":null},{"id":"animalcrossing","title":"Animal Crossing: New Horizons","year":2020,"series":"animal-crossing","genres":["Симулятор"],"tags":["симулятор жизни","уютная","расслабляющая","для всей семьи","животные","строительство","рыбалка","мультяшная","казуальная"],"aliases":["энимал кроссинг","animal crossing"],"steam":null,"wiki":"Animal Crossing: New Horizons"},{"id":"sims4","title":"The Sims 4","year":2014,"series":"sims","genres":["Симулятор","Песочница"],"tags":["симулятор жизни","строительство","расслабляющая","уютная","романы","юмор","казуальная"],"aliases":["симс 4","симс","the sims 4","sims 4","sims"],"steam":1222670,"wiki":null},{"id":"slimerancher","title":"Slime Rancher","year":2017,"series":"slime-rancher","genres":["Симулятор","Приключение"],"tags":["приручение существ","уютная","фермерство","от первого лица","исследование","для всей семьи","инди"],"aliases":["слайм ранчер","slime rancher"],"steam":433340,"wiki":null},{"id":"spiritfarer","title":"Spiritfarer","year":2020,"series":null,"genres":["Симулятор","Приключение"],"tags":["уютная","эмоциональная","менеджмент","крафт","рисованная","инди","море","кооператив"],"aliases":["спиритфарер","spiritfarer"],"steam":972660,"wiki":null},{"id":"ashorthike","title":"A Short Hike","year":2019,"series":null,"genres":["Приключение"],"tags":["уютная","расслабляющая","исследование","короткая","пиксельная графика","инди","животные"],"aliases":["э шорт хайк","a short hike"],"steam":1055540,"wiki":null},{"id":"davethediver","title":"Dave the Diver","year":2023,"series":null,"genres":["Приключение","Симулятор"],"tags":["под водой","море","менеджмент","рыбалка","пиксельная графика","юмор","исследование","инди"],"aliases":["дейв дайвер","dave the diver"],"steam":1868140,"wiki":null},{"id":"farmingsim22","title":"Farming Simulator 22","year":2021,"series":"farming-sim","genres":["Симулятор"],"tags":["фермерство","реалистичная","расслабляющая","кооператив","экономика"],"aliases":["фермер симулятор","фарминг симулятор","farming simulator 22","fs22"],"steam":1248130,"wiki":null},{"id":"ets2","title":"Euro Truck Simulator 2","year":2012,"series":"truck-sim","genres":["Симулятор"],"tags":["симулятор вождения","автомобили","расслабляющая","открытый мир","экономика","реалистичная"],"aliases":["евро трак симулятор 2","етс 2","дальнобойщики","euro truck simulator 2","ets2"],"steam":227300,"wiki":null},{"id":"beamng","title":"BeamNG.drive","year":2015,"series":null,"genres":["Симулятор","Песочница"],"tags":["физика","автомобили","симулятор вождения","инди"],"aliases":["бименджи","бимэнджи","beamng","beamng drive"],"steam":284160,"wiki":null},{"id":"mysummercar","title":"My Summer Car","year":2016,"series":null,"genres":["Симулятор","Песочница"],"tags":["автомобили","сложная","юмор","реалистичная","от первого лица","инди","ремонт"],"aliases":["май саммер кар","my summer car","msc"],"steam":516750,"wiki":null},{"id":"carmechanic","title":"Car Mechanic Simulator 2021","year":2021,"series":"car-mechanic","genres":["Симулятор"],"tags":["автомобили","ремонт","расслабляющая","от первого лица","экономика"],"aliases":["кар механик симулятор","автомеханик","car mechanic simulator"],"steam":1190000,"wiki":null},{"id":"msfs","title":"Microsoft Flight Simulator","year":2020,"series":"flight-sim","genres":["Симулятор"],"tags":["авиация","реалистичная","открытый мир","расслабляющая","исследование"],"aliases":["флайт симулятор","авиасимулятор","microsoft flight simulator","msfs"],"steam":1250410,"wiki":null},{"id":"ksp","title":"Kerbal Space Program","year":2015,"series":"kerbal","genres":["Симулятор","Песочница"],"tags":["космос","физика","строительство","юмор","научная фантастика","сложная","инди"],"aliases":["кербал","ксп","kerbal space program","ksp"],"steam":220200,"wiki":null},{"id":"powerwash","title":"PowerWash Simulator","year":2022,"series":null,"genres":["Симулятор"],"tags":["расслабляющая","ремонт","казуальная","от первого лица","кооператив","уютная"],"aliases":["павервош симулятор","мойка","powerwash simulator"],"steam":1290000,"wiki":null},{"id":"houseflipper","title":"House Flipper","year":2018,"series":"house-flipper","genres":["Симулятор"],"tags":["ремонт","расслабляющая","строительство","от первого лица","казуальная"],"aliases":["хаус флиппер","house flipper"],"steam":613100,"wiki":null},{"id":"planetzoo","title":"Planet Zoo","year":2019,"series":null,"genres":["Симулятор","Стратегия"],"tags":["животные","менеджмент","строительство","экономика","расслабляющая"],"aliases":["планет зу","зоопарк","planet zoo"],"steam":703080,"wiki":null},{"id":"twopointhospital","title":"Two Point Hospital","year":2018,"series":null,"genres":["Симулятор","Стратегия"],"tags":["менеджмент","юмор","экономика","строительство","казуальная"],"aliases":["ту поинт хоспитал","two point hospital"],"steam":535930,"wiki":null},{"id":"forzah5","title":"Forza Horizon 5","year":2021,"series":"forza","genres":["Гонки"],"tags":["открытый мир","аркадные гонки","автомобили","мультиплеер","онлайн"],"aliases":["форза 5","форза хорайзон 5","форза","forza horizon 5","fh5"],"steam":1551360,"wiki":null},{"id":"nfsmw","title":"Need for Speed: Most Wanted","year":2005,"series":"need-for-speed","genres":["Гонки"],"tags":["аркадные гонки","автомобили","открытый мир","криминал"],"aliases":["нфс мост вантед","нфс","nfs most wanted","nfs mw","need for speed most wanted"],"steam":null,"wiki":"Need for Speed: Most Wanted (2005 video game)"},{"id":"nfsu2","title":"Need for Speed: Underground 2","year":2004,"series":"need-for-speed","genres":["Гонки"],"tags":["аркадные гонки","автомобили","открытый мир","криминал"],"aliases":["нфс андеграунд 2","андеграунд","nfs underground 2","nfsu2"],"steam":null,"wiki":"Need for Speed: Underground 2"},{"id":"gt7","title":"Gran Turismo 7","year":2022,"series":"gran-turismo","genres":["Гонки","Симулятор"],"tags":["симулятор вождения","автомобили","реалистичная","соревновательная","мультиплеер"],"aliases":["гран туризмо 7","gran turismo 7","gt7"],"steam":null,"wiki":"Gran Turismo 7"},{"id":"assettocorsa","title":"Assetto Corsa","year":2014,"series":"assetto-corsa","genres":["Гонки","Симулятор"],"tags":["симулятор вождения","автомобили","реалистичная","сложная","мультиплеер"],"aliases":["ассетто корса","ассето","assetto corsa"],"steam":244210,"wiki":null},{"id":"mariokart8","title":"Mario Kart 8 Deluxe","year":2017,"series":"mario","genres":["Гонки","Вечеринка"],"tags":["аркадные гонки","для всей семьи","локальный кооператив","мультиплеер","мультяшная","казуальная"],"aliases":["марио карт","mario kart 8","mario kart"],"steam":null,"wiki":"Mario Kart 8 Deluxe"},{"id":"trackmania","title":"Trackmania","year":2020,"series":"trackmania","genres":["Гонки"],"tags":["аркадные гонки","автомобили","соревновательная","бесплатная","сложная","онлайн"],"aliases":["трекмания","trackmania"],"steam":2225070,"wiki":null},{"id":"rocketleague","title":"Rocket League","year":2015,"series":null,"genres":["Спорт","Гонки"],"tags":["футбол","автомобили","соревновательная","PvP","командная","киберспорт","бесплатная","онлайн"],"aliases":["рокет лига","рокет лиг","rocket league"],"steam":252950,"wiki":null},{"id":"fc26","title":"EA Sports FC 26","year":2025,"series":"ea-fc","genres":["Спорт"],"tags":["футбол","соревновательная","мультиплеер","PvP","онлайн","реалистичная"],"aliases":["фифа","фк 26","fifa","fc 26","ea fc","ea sports fc"],"steam":null,"wiki":"EA Sports FC 26"},{"id":"fm24","title":"Football Manager 2024","year":2023,"series":"football-manager","genres":["Спорт","Симулятор","Стратегия"],"tags":["футбол","менеджмент","экономика","сложная"],"aliases":["футбольный менеджер","фм","football manager","fm24"],"steam":2252570,"wiki":null},{"id":"nba2k26","title":"NBA 2K26","year":2025,"series":"nba-2k","genres":["Спорт"],"tags":["баскетбол","соревновательная","мультиплеер","реалистичная","онлайн"],"aliases":["нба 2к26","баскетбол","nba 2k26","nba 2k"],"steam":null,"wiki":"NBA 2K26"},{"id":"mk1","title":"Mortal Kombat 1","year":2023,"series":"mortal-kombat","genres":["Файтинг"],"tags":["соревновательная","PvP","мультиплеер","сюжетная","киберспорт"],"aliases":["мортал комбат","мк","mortal kombat 1","mortal kombat","mk1"],"steam":1971870,"wiki":null},{"id":"sf6","title":"Street Fighter 6","year":2023,"series":"street-fighter","genres":["Файтинг"],"tags":["соревновательная","PvP","мультиплеер","киберспорт","2D"],"aliases":["стрит файтер 6","стрит файтер","street fighter 6","sf6"],"steam":1364780,"wiki":null},{"id":"tekken8","title":"Tekken 8","year":2024,"series":"tekken","genres":["Файтинг"],"tags":["соревновательная","PvP","мультиплеер","киберспорт","сюжетная"],"aliases":["теккен 8","теккен","tekken 8","tekken"],"steam":1778820,"wiki":null},{"id":"ggstrive","title":"Guilty Gear -Strive-","year":2021,"series":"guilty-gear","genres":["Файтинг"],"tags":["аниме","соревновательная","PvP","2D","музыка","киберспорт"],"aliases":["гилти гир","guilty gear strive","ggst"],"steam":1384160,"wiki":null},{"id":"smash","title":"Super Smash Bros. Ultimate","year":2018,"series":"smash","genres":["Файтинг","Вечеринка"],"tags":["мультиплеер","для всей семьи","мультяшная","соревновательная","PvP","казуальная"],"aliases":["смэш","smash bros","super smash bros ultimate"],"steam":null,"wiki":"Super Smash Bros. Ultimate"},{"id":"brawlhalla","title":"Brawlhalla","year":2017,"series":null,"genres":["Файтинг","Вечеринка"],"tags":["бесплатная","2D","мультиплеер","казуальная","PvP","онлайн"],"aliases":["броулхалла","brawlhalla"],"steam":291550,"wiki":null},{"id":"wow","title":"World of Warcraft","year":2004,"series":"warcraft","genres":["MMO","RPG"],"tags":["онлайн","фэнтези","рейды","PvP","кооператив","гринд","магия","открытый мир"],"aliases":["ворлд оф варкрафт","вов","wow","world of warcraft"],"steam":null,"wiki":"World of Warcraft"},{"id":"ffxiv","title":"Final Fantasy XIV","year":2013,"series":"final-fantasy","genres":["MMO","RPG"],"tags":["онлайн","фэнтези","рейды","сюжетная","JRPG","кооператив","магия"],"aliases":["финалка 14","ff14","ffxiv","final fantasy 14"],"steam":39210,"wiki":null},{"id":"gw2","title":"Guild Wars 2","year":2012,"series":"guild-wars","genres":["MMO","RPG"],"tags":["онлайн","фэнтези","кооператив","PvP","открытый мир","сюжетная"],"aliases":["гилд варс 2","guild wars 2","gw2"],"steam":1284210,"wiki":null},{"id":"lostark","title":"Lost Ark","year":2019,"series":null,"genres":["MMO","RPG","Экшен"],"tags":["hack and slash","изометрия","онлайн","рейды","фэнтези","бесплатная","гринд"],"aliases":["лост арк","lost ark"],"steam":1599340,"wiki":null},{"id":"eve","title":"EVE Online","year":2003,"series":null,"genres":["MMO","Стратегия","Песочница"],"tags":["космос","научная фантастика","экономика","PvP","онлайн","сложная","нелинейная"],"aliases":["ив онлайн","eve online","eve"],"steam":8500,"wiki":null},{"id":"dota2","title":"Dota 2","year":2013,"series":null,"genres":["MOBA","Стратегия"],"tags":["соревновательная","командная","PvP","киберспорт","сложная","бесплатная","фэнтези","онлайн"],"aliases":["дота","дота 2","dota 2","dota"],"steam":570,"wiki":null},{"id":"lol","title":"League of Legends","year":2009,"series":null,"genres":["MOBA","Стратегия"],"tags":["соревновательная","командная","PvP","киберспорт","бесплатная","фэнтези","онлайн"],"aliases":["лига легенд","лол","league of legends","lol"],"steam":null,"wiki":"League of Legends"},{"id":"amongus","title":"Among Us","year":2018,"series":null,"genres":["Вечеринка"],"tags":["социальная дедукция","мультиплеер","онлайн","казуальная","космос","инди","мультяшная"],"aliases":["амонг ас","амогус","among us"],"steam":945360,"wiki":null},{"id":"fallguys","title":"Fall Guys","year":2020,"series":null,"genres":["Вечеринка","Платформер"],"tags":["королевская битва","казуальная","мультиплеер","бесплатная","мультяшная","онлайн"],"aliases":["фол гайс","fall guys"],"steam":1097150,"wiki":null},{"id":"overcooked2","title":"Overcooked! 2","year":2018,"series":"overcooked","genres":["Вечеринка","Симулятор"],"tags":["кооператив","локальный кооператив","для всей семьи","казуальная","юмор"],"aliases":["оверкукд 2","оверкукед","overcooked 2"],"steam":728880,"wiki":null},{"id":"peak","title":"PEAK","year":2025,"series":null,"genres":["Приключение","Вечеринка"],"tags":["кооператив","физика","юмор","онлайн","инди","от первого лица","исследование","сложная"],"aliases":["пик","peak"],"steam":3527290,"wiki":null},{"id":"seaofthieves","title":"Sea of Thieves","year":2018,"series":null,"genres":["Приключение","Экшен"],"tags":["пираты","море","кооператив","PvP","онлайн","юмор","исследование","от первого лица","мультяшная"],"aliases":["си оф сивз","море воров","sea of thieves"],"steam":1172620,"wiki":null},{"id":"beatsaber","title":"Beat Saber","year":2019,"series":null,"genres":["Ритм"],"tags":["VR","музыка","динамичная","соревновательная"],"aliases":["бит сейбер","beat saber"],"steam":620980,"wiki":null},{"id":"hifirush","title":"Hi-Fi Rush","year":2023,"series":null,"genres":["Экшен","Ритм"],"tags":["музыка","beat 'em up","мультяшная","юмор","боссы","динамичная"],"aliases":["хай фай раш","хай-фай раш","hi-fi rush"],"steam":1817230,"wiki":null},{"id":"necrodancer","title":"Crypt of the NecroDancer","year":2015,"series":null,"genres":["Ритм","Рогалик"],"tags":["музыка","пиксельная графика","вид сверху","инди","сложная","процедурная генерация"],"aliases":["некроданцер","crypt of the necrodancer","necrodancer"],"steam":247080,"wiki":null},{"id":"osu","title":"osu!","year":2007,"series":null,"genres":["Ритм"],"tags":["музыка","аниме","соревновательная","бесплатная","сложная","онлайн"],"aliases":["осу","osu"],"steam":null,"wiki":"Osu!"},{"id":"pokemonarceus","title":"Pokémon Legends: Arceus","year":2022,"series":"pokemon","genres":["RPG","Приключение"],"tags":["приручение существ","открытый мир","исследование","для всей семьи","от третьего лица","мультяшная"],"aliases":["покемон","покемон арсеус","pokemon legends arceus","pokemon"],"steam":null,"wiki":"Pokémon Legends: Arceus"}]}</script>
+
+<script id="reco-engine">
+/* Модель рекомендаций в браузере: точная копия recommender.py (TF‑IDF + косинусное сходство). */
+(function (root) {
+  'use strict';
+
+  const ROMAN = new Map(Object.entries({ ii: '2', iii: '3', iv: '4', v: '5', vi: '6', vii: '7', viii: '8',
+    ix: '9', x: '10', xi: '11', xii: '12', xiii: '13', xiv: '14', xv: '15', xvi: '16' }));
+  const EN = "qwertyuiop[]asdfghjkl;'zxcvbnm,.`";
+  const RU = 'йцукенгшщзхъфывапролджэячсмитьбюё';
+
+  const cmp = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
+  const rankKey = x => Math.floor(x * 1e9 + 0.5);
+  const label = name => (name.startsWith('s:') ? 'та же серия' : name.slice(2));
+
+  function normalizeText(s) {
+    s = s.toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '');
+    s = s.replace(/[.'’`ʼ]/g, '').replace(/[^0-9a-zа-я]+/g, ' ');
+    return s.split(' ').filter(Boolean).map(t => ROMAN.get(t) || t).join(' ');
+  }
+
+  function swapLayout(s) {
+    s = s.toLowerCase();
+    const lat = /[a-z]/.test(s), cyr = /[а-яё]/.test(s);
+    const convert = (from, to) => Array.from(s, c => { const i = from.indexOf(c); return i >= 0 ? to[i] : c; }).join('');
+    if (lat && !cyr) return convert(EN, RU);
+    if (cyr && !lat) return convert(RU, EN);
+    return null;
+  }
+
+  function trigrams(s) {
+    s = '  ' + s + ' ';
+    const out = new Set();
+    for (let i = 0; i + 3 <= s.length; i++) out.add(s.slice(i, i + 3));
+    return out;
+  }
+
+  function dice(a, b) {
+    if (!a.size || !b.size) return 0;
+    let n = 0;
+    for (const x of a) if (b.has(x)) n++;
+    return 2 * n / (a.size + b.size);
+  }
+
+  function editSimilarity(a, b) {
+    if (a.length < b.length) [a, b] = [b, a];
+    let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+    for (let i = 1; i <= a.length; i++) {
+      const cur = [i];
+      for (let j = 1; j <= b.length; j++) {
+        cur.push(Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] !== b[j - 1] ? 1 : 0)));
+      }
+      prev = cur;
+    }
+    return 1 - prev[b.length] / a.length;
+  }
+
+  function match(q, qc, grams, single, entry) {
+    const [text, compact, textGrams, words, wordGrams] = entry;
+    const n = Math.min(text.length, 99);
+    if (text === q) return 1000;
+    if (text.startsWith(q)) return 900 - n;
+    if ((' ' + text).includes(' ' + q)) return 800 - n;
+    if (text.includes(q)) return 700 - n;
+    if (qc.length >= 3 && compact.includes(qc)) return 650 - n;
+    if (q.length >= 3) {
+      let sim = dice(grams, textGrams);
+      if (sim >= 0.3 && Math.abs(q.length - text.length) <= 3) sim = Math.max(sim, editSimilarity(q, text));
+      if (single) {
+        for (let i = 0; i < words.length; i++) {
+          if (dice(grams, wordGrams[i]) >= 0.3) sim = Math.max(sim, editSimilarity(q, words[i]));
+        }
+      }
+      if (sim >= 0.4) return Math.floor(500 * sim);
+    }
+    return 0;
+  }
+
+  function dot(a, b) {
+    let s = 0;
+    for (const [k, x] of b) { const y = a.get(k); if (y !== undefined) s += x * y; }
+    return s;
+  }
+
+  class LocalEngine {
+    constructor(games, params) {
+      this.mode = 'local';
+      this.games = games;
+      this.P = params;
+      this.byId = new Map(games.map((g, i) => [g.id, i]));
+      const P = params, N = games.length;
+
+      const seriesSize = new Map();
+      for (const g of games) if (g.series) seriesSize.set(g.series, (seriesSize.get(g.series) || 0) + 1);
+      const raw = games.map(g => {
+        let gw = P.genre_weight;
+        if (P.genre_split) gw /= Math.sqrt(g.genres.length);
+        const f = new Map();
+        for (const x of g.genres) f.set('g:' + x, gw);
+        for (const t of g.tags) f.set('t:' + t, P.tag_weight);
+        if (g.series && seriesSize.get(g.series) > 1) f.set('s:' + g.series, P.series_weight);
+        return f;
+      });
+      const df = new Map();
+      for (const f of raw) for (const k of f.keys()) df.set(k, (df.get(k) || 0) + 1);
+      this.idf = new Map();
+      for (const [k, d] of df) if (d >= P.min_df) this.idf.set(k, Math.log((1 + N) / (1 + d)) + 1);
+      this.vectors = raw.map(f => {
+        const v = new Map();
+        let n2 = 0;
+        for (const [k, w] of f) {
+          const idf = this.idf.get(k);
+          if (idf === undefined) continue;
+          const x = w * idf;
+          v.set(k, x);
+          n2 += x * x;
+        }
+        const n = Math.sqrt(n2);
+        if (n) for (const [k, x] of v) v.set(k, x / n);
+        return v;
+      });
+      this.index = games.map(g => {
+        const texts = [];
+        for (const s of [g.title, ...g.aliases, g.id]) {
+          const t = normalizeText(s);
+          if (t && !texts.includes(t)) texts.push(t);
+        }
+        return texts.map(t => { const words = t.split(' '); return [t, t.replace(/ /g, ''), trigrams(t), words, words.map(trigrams)]; });
+      });
+    }
+
+    rows(ids) {
+      const out = [];
+      for (const id of ids) {
+        if (!this.byId.has(id)) throw new Error(`Нет игры с id «${id}»`);
+        const r = this.byId.get(id);
+        if (!out.includes(r)) out.push(r);
+      }
+      return out;
+    }
+
+    profile(rows) {
+      const v = new Map();
+      for (const r of rows) for (const [k, x] of this.vectors[r]) v.set(k, (v.get(k) || 0) + x);
+      let n2 = 0;
+      for (const x of v.values()) n2 += x * x;
+      const n = Math.sqrt(n2);
+      if (n) for (const [k, x] of v) v.set(k, x / n);
+      return v;
+    }
+
+    reasons(p, row) {
+      const items = [];
+      for (const [k, x] of this.vectors[row]) { const y = p.get(k); if (y > 0) items.push([y * x, k]); }
+      items.sort((a, b) => rankKey(b[0]) - rankKey(a[0]) || cmp(a[1], b[1]));
+      return items.slice(0, this.P.reasons).map(it => label(it[1]));
+    }
+
+    describe(p) {
+      const items = [];
+      for (const [k, w] of p) if (w > 0 && !k.startsWith('s:')) items.push([w, k]);
+      items.sort((a, b) => rankKey(b[0]) - rankKey(a[0]) || cmp(a[1], b[1]));
+      const top = items.slice(0, this.P.profile);
+      if (!top.length) return [];
+      const peak = top[0][0];
+      return top.map(([w, k]) => ({ label: label(k), kind: k.startsWith('g:') ? 'genre' : 'tag',
+        weight: Math.floor(w / peak * 1000 + 0.5) / 1000 }));
+    }
+
+    recommendSync({ liked, disliked = [], k = 12, excludeSeries = false }) {
+      const pos = this.rows(liked), neg = this.rows(disliked);
+      if (!pos.length) throw new Error('Нужна хотя бы одна игра, которая понравилась');
+      const p = this.profile(pos), nv = neg.length ? this.profile(neg) : null;
+      const w = this.P.dislike_weight;
+      const scores = this.vectors.map(v => (nv ? dot(p, v) - w * dot(nv, v) : dot(p, v)));
+      const skip = new Set([...pos, ...neg]);
+      const likedSeries = new Set(pos.map(i => this.games[i].series).filter(Boolean));
+      const order = this.games.map((_, i) => i)
+        .sort((a, b) => rankKey(scores[b]) - rankKey(scores[a]) || cmp(this.games[a].id, this.games[b].id));
+      const results = [];
+      for (const i of order) {
+        if (skip.has(i)) continue;
+        const g = this.games[i];
+        const same = !!g.series && likedSeries.has(g.series);
+        if (same && excludeSeries) continue;
+        results.push({ game: g, score: scores[i], same_series: same, reasons: this.reasons(p, i) });
+        if (results.length >= k) break;
+      }
+      return { profile: this.describe(p), results };
+    }
+
+    searchScores(text, factor) {
+      const q = normalizeText(text);
+      if (!q) return this.games.map(() => 0);
+      const qc = q.replace(/ /g, ''), grams = trigrams(q), single = !q.includes(' ');
+      return this.index.map(entries => {
+        let best = 0;
+        for (const e of entries) best = Math.max(best, match(q, qc, grams, single, e));
+        return Math.floor(factor * best);
+      });
+    }
+
+    searchSync(query, limit = 8) {
+      const scores = this.searchScores(query, 1);
+      if (Math.max(...scores) < 800) {
+        const swapped = swapLayout(query);
+        if (swapped) this.searchScores(swapped, 0.9).forEach((s, i) => { if (s > scores[i]) scores[i] = s; });
+      }
+      const idx = scores.map((_, i) => i).filter(i => scores[i] > 0);
+      idx.sort((a, b) => scores[b] - scores[a] || cmp(this.games[a].title, this.games[b].title));
+      return idx.slice(0, limit).map(i => ({ game: this.games[i], score: scores[i] }));
+    }
+
+    statsSync() {
+      const names = [...this.idf.keys()];
+      return { games: this.games.length, features: names.length,
+        genres: names.filter(n => n.startsWith('g:')).length, tags: names.filter(n => n.startsWith('t:')).length,
+        idf: Object.fromEntries(this.idf) };
+    }
+
+    getSync(id) {
+      if (!this.byId.has(id)) throw new Error(`Нет игры с id «${id}»`);
+      return this.games[this.byId.get(id)];
+    }
+
+    /* асинхронный интерфейс — такой же, как у ApiEngine */
+    async stats() { return this.statsSync(); }
+    async search(q, limit) { return this.searchSync(q, limit).map(h => h.game); }
+    async recommend(opts) { return this.recommendSync(opts); }
+    async get(id) { return this.getSync(id); }
+    async random() { return this.games[Math.floor(Math.random() * this.games.length)]; }
+  }
+
+  /* Тот же интерфейс поверх Python-сервера (app.py) */
+  class ApiEngine {
+    constructor(base) { this.mode = 'api'; this.base = base.replace(/\/$/, ''); }
+    async call(path, body) {
+      let res;
+      try {
+        res = await fetch(this.base + path, body === undefined ? undefined : {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      } catch (e) {
+        throw new Error('Сервер не отвечает. Проверьте, что app.py запущен.');
+      }
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `Сервер ответил кодом ${res.status}`);
+      return data;
+    }
+    stats() { return this.call('/stats'); }
+    async search(q, limit = 8) { return (await this.call(`/search?q=${encodeURIComponent(q)}&limit=${limit}`)).results; }
+    recommend(o) { return this.call('/recommend', { liked: o.liked, disliked: o.disliked || [], exclude_series: !!o.excludeSeries, k: o.k || 12 }); }
+    get(id) { return this.call('/games/' + encodeURIComponent(id)); }
+    random() { return this.call('/random'); }
+  }
+
+  root.RecoEngine = { LocalEngine, ApiEngine, normalizeText, swapLayout };
+})(typeof window !== 'undefined' ? window : globalThis);
+</script>
+
+<script>
+(function () {
+  'use strict';
+  const PAGE = 12, MAX_K = 48, MAX_GAMES = 6;
+  const EXAMPLE_ID = 'witcher3';
+  const TRY = [['darksouls', 'Dark Souls'], ['minecraft', 'Minecraft'], ['cs2', 'Counter-Strike 2'],
+    ['stardew', 'Stardew Valley'], ['hollowknight', 'Hollow Knight'], ['balatro', 'Balatro'], ['detroit', 'Detroit']];
+
+  const $ = id => document.getElementById(id);
+  const el = {
+    q: $('q'), suggest: $('suggest'), liked: $('liked'), disliked: $('disliked'), likedRow: $('liked-row'),
+    dislikedRow: $('disliked-row'), exampleTag: $('example-tag'), noSeries: $('no-series'), random: $('random'),
+    clear: $('clear'), tryRow: $('try'), profileSec: $('profile-section'), profile: $('profile'), results: $('results'),
+    title: $('results-title'), note: $('results-note'), grid: $('grid'), empty: $('empty'), more: $('more'), stats: $('stats'),
+  };
+  const state = { liked: [], disliked: [], excludeSeries: false, k: PAGE, example: false };
+  const shown = new Map();
+  let engine, stats, runId = 0, searchId = 0, suggestions = [], active = -1;
+
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+  const plural = (n, one, few, many) => {
+    const a = n % 10, b = n % 100;
+    return `${n} ${a === 1 && b !== 11 ? one : a >= 2 && a <= 4 && (b < 12 || b > 14) ? few : many}`;
+  };
+  const num = x => x.toFixed(1).replace('.', ',');
+  const reduceMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const ICON = {
+    plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
+    search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>',
+    x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg>',
+  };
+
+  /* ---------- обложки ---------- */
+  const GENRE_HUE = new Map(Object.entries({ 'RPG': 266, 'Экшен': 12, 'Приключение': 168, 'Шутер': 206,
+    'Стратегия': 226, 'Симулятор': 188, 'Платформер': 42, 'Головоломка': 296, 'Хоррор': 348, 'Выживание': 96,
+    'Гонки': 26, 'Спорт': 134, 'Файтинг': 2, 'Песочница': 72, 'MMO': 248, 'MOBA': 236, 'Карточная': 326,
+    'Ритм': 312, 'Рогалик': 282, 'Вечеринка': 52, 'Интерактивное кино': 214, 'Визуальная новелла': 318 }));
+  const ROMAN_INT = new Map(Object.entries({ II: 2, III: 3, IV: 4, V: 5, VI: 6, VII: 7, VIII: 8, IX: 9, X: 10,
+    XI: 11, XII: 12, XIII: 13, XIV: 14, XV: 15, XVI: 16 }));
+  const SMALL = new Set(['the', 'a', 'an', 'of', 'and', 'to', 'in', 'for', 'at', 'on', 'is']);
+
+  function hash(s) {
+    let h = 2166136261;
+    for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return h >>> 0;
+  }
+  function initials(title) {
+    const main = title.split(/:|\s[–-]\s/)[0].replace(/[.'’]/g, '');
+    const all = main.split(/[^0-9A-Za-zА-Яа-яЁё]+/).filter(w => w && !SMALL.has(w.toLowerCase()));
+    const words = all.filter(w => !/^\d{3,}$/.test(w));  // годы и «40,000» в инициалы не идут
+    if (!words.length) return all.length ? all[0].slice(0, 4) : '?';
+    let n = '';
+    const last = words[words.length - 1];
+    if (words.length > 1 && (/^\d{1,2}$/.test(last) || ROMAN_INT.has(last))) { n = String(ROMAN_INT.get(last) ?? last); words.pop(); }
+    const letters = words.length === 1
+      ? (/^[A-ZА-Я0-9]{2,4}$/.test(words[0]) ? words[0] : words[0][0])
+      : words.slice(0, 3).map(w => w[0]).join('');
+    return (letters.toUpperCase() + n).slice(0, 5);
+  }
+  function cover(g, size = '') {
+    const h = hash(g.id);
+    const base = GENRE_HUE.get(g.genres[0]) ?? h % 360;
+    const h1 = (base + (h % 31) - 15 + 360) % 360;
+    const h2 = (h1 + 24 + ((h >>> 5) % 50)) % 360;
+    const style = `--h1:${h1};--h2:${h2};--a:${100 + ((h >>> 11) % 160)}deg;--x:${18 + ((h >>> 3) % 64)}%;` +
+      `--y:${22 + ((h >>> 7) % 56)}%;--r:${16 + ((h >>> 17) % 16)}%`;
+    const text = initials(g.title);
+    const cls = ['cover', size, text.length >= 5 ? 'l5' : text.length === 4 ? 'l4' : ''].filter(Boolean).join(' ');
+    const img = g.steam ? `<img class="cover-img" src="${STEAM_COVER[0](g.steam)}" data-steam="${g.steam}" data-step="0" ` +
+        `alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer">`
+      : g.wiki ? `<img class="cover-img" data-wiki="${esc(g.wiki)}" alt="" decoding="async" referrerpolicy="no-referrer" hidden>` : '';
+    return `<span class="${cls}" style="${style}" aria-hidden="true"><b>${esc(text)}</b>${img}</span>`;
+  }
+
+  /* Настоящие обложки берутся из Steam. Если картинка не загрузилась (нет интернета,
+     у игры нет такой обложки, сайт блокирует внешние картинки) — пробуем следующий
+     вариант, а в конце остаётся сгенерированная обложка. */
+  const STEAM_COVER = [
+    id => `https://cdn.akamai.steamstatic.com/steam/apps/${id}/library_600x900.jpg`,
+    id => `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${id}/library_600x900.jpg`,
+    id => `https://cdn.akamai.steamstatic.com/steam/apps/${id}/header.jpg`,
+  ];
+  document.addEventListener('error', e => {
+    const img = e.target;
+    if (!(img instanceof HTMLImageElement) || !img.classList.contains('cover-img')) return;
+    if (img.dataset.wiki) { img.remove(); return; }
+    const next = Number(img.dataset.step) + 1;
+    if (next < STEAM_COVER.length) { img.dataset.step = String(next); img.src = STEAM_COVER[next](img.dataset.steam); }
+    else img.remove();
+  }, true);
+
+  /* Игры без Steam: обложка из статьи Википедии (один запрос к API на все новые названия). */
+  const wikiCovers = new Map();  // название статьи → Promise<url | null>
+  function requestWiki(titles) {
+    const url = 'https://en.wikipedia.org/w/api.php?action=query&format=json&formatversion=2&origin=*' +
+      '&prop=pageimages&piprop=thumbnail&pithumbsize=400&pilicense=any&redirects=1&titles=' +
+      encodeURIComponent(titles.join('|'));
+    const answer = fetch(url).then(r => (r.ok ? r.json() : null)).then(data => {
+      const q = (data && data.query) || {};
+      const final = new Map(titles.map(t => [t, t]));
+      for (const step of [q.normalized || [], q.redirects || []]) {
+        for (const { from, to } of step) for (const [t, cur] of final) if (cur === from) final.set(t, to);
+      }
+      const thumbs = new Map((q.pages || []).map(p => [p.title, p.thumbnail && p.thumbnail.source]));
+      return new Map(titles.map(t => [t, thumbs.get(final.get(t)) || null]));
+    }).catch(() => new Map());
+    for (const t of titles) wikiCovers.set(t, answer.then(m => m.get(t) || null));
+  }
+  function loadWikiCovers() {
+    const imgs = [...document.querySelectorAll('img.cover-img[data-wiki]:not([data-queued])')];
+    const fresh = [...new Set(imgs.map(i => i.dataset.wiki))].filter(t => !wikiCovers.has(t));
+    for (let i = 0; i < fresh.length; i += 40) requestWiki(fresh.slice(i, i + 40));
+    for (const img of imgs) {
+      img.dataset.queued = '1';
+      wikiCovers.get(img.dataset.wiki).then(src => {
+        if (!img.isConnected) return;
+        if (src) { img.src = src; img.hidden = false; } else img.remove();
+      });
+    }
+  }
+  let wikiQueued = false;
+  new MutationObserver(() => {
+    if (wikiQueued) return;
+    wikiQueued = true;
+    queueMicrotask(() => { wikiQueued = false; loadWikiCovers(); });
+  }).observe(document.documentElement, { childList: true, subtree: true });
+
+  /* ---------- состояние в адресе: #witcher3.skyrim~eldenring-s ---------- */
+  function saveHash() {
+    if (state.example) return;
+    let token = state.liked.map(g => g.id).join('.');
+    if (token && state.disliked.length) token += '~' + state.disliked.map(g => g.id).join('.');
+    if (token && state.excludeSeries) token += '-s';
+    try { history.replaceState(null, '', token ? '#' + token : location.pathname + location.search); } catch (e) { /* frame без истории */ }
+  }
+  async function restoreHash() {
+    const m = /^#([a-z0-9_.]+)(?:~([a-z0-9_.]+))?(-s)?$/.exec(location.hash || '');
+    if (!m) return false;
+    const load = async list => (await Promise.all(list.split('.').filter(Boolean)
+      .map(id => engine.get(id).catch(() => null)))).filter(Boolean);
+    state.liked = (await load(m[1])).slice(0, MAX_GAMES);
+    state.disliked = m[2] ? (await load(m[2])).slice(0, MAX_GAMES) : [];
+    state.excludeSeries = !!m[3];
+    return state.liked.length > 0;
+  }
+
+  /* ---------- изменения запроса ---------- */
+  function addLiked(g, { replaceExample = false } = {}) {
+    if (state.example && replaceExample) state.liked = [];
+    state.example = false;
+    state.disliked = state.disliked.filter(x => x.id !== g.id);
+    if (!state.liked.some(x => x.id === g.id)) state.liked.push(g);
+    if (state.liked.length > MAX_GAMES) state.liked.shift();
+    state.k = PAGE;
+  }
+  function addDisliked(g) {
+    state.example = false;
+    state.liked = state.liked.filter(x => x.id !== g.id);
+    if (!state.disliked.some(x => x.id === g.id)) state.disliked.push(g);
+    if (state.disliked.length > MAX_GAMES) state.disliked.shift();
+    state.k = PAGE;
+  }
+  function only(g) {
+    state.liked = [g]; state.disliked = []; state.example = false; state.k = PAGE;
+  }
+
+  /* ---------- отрисовка ---------- */
+  function chip(g, kind) {
+    return `<span class="chip ${kind}">${cover(g, 'xs')}<span class="chip-title">${esc(g.title)}</span>` +
+      `<button type="button" data-remove="${kind}" data-id="${esc(g.id)}" aria-label="Убрать «${esc(g.title)}»">${ICON.x}</button></span>`;
+  }
+  function renderQuery() {
+    el.liked.innerHTML = state.liked.map(g => chip(g, 'like')).join('');
+    el.disliked.innerHTML = state.disliked.map(g => chip(g, 'bad')).join('');
+    el.likedRow.hidden = !state.liked.length;
+    el.dislikedRow.hidden = !state.disliked.length;
+    el.exampleTag.hidden = !state.example;
+    el.noSeries.checked = state.excludeSeries;
+  }
+  function resultsTitle() {
+    const L = state.liked;
+    if (L.length === 1) return `Похоже на «${L[0].title}»`;
+    if (L.length === 2) return `Похоже на «${L[0].title}» и «${L[1].title}»`;
+    return `Похоже сразу на ${plural(L.length, 'игру', 'игры', 'игр')}`;
+  }
+  function card(r, i) {
+    const g = r.game;
+    const pct = Math.max(0, Math.round(r.score * 100));
+    const on = Math.min(10, Math.round(pct / 10));
+    return `<li class="card" style="--i:${i}">
+      ${cover(g)}
+      <div class="card-body">
+        <div class="card-top"><span class="rank">#${i + 1}</span>${r.same_series ? '<span class="badge">та же серия</span>' : ''}<button type="button" class="btn-ghost" data-act="dislike" data-id="${esc(g.id)}" title="Убрать эту игру и опустить похожие на неё">${ICON.x}Не то</button></div>
+        <h3>${esc(g.title)}</h3>
+        <p class="meta">${g.year} · ${esc(g.genres.join(' · '))}</p>
+        <div class="hp" role="img" aria-label="Совпадение ${pct}%">${'<i class="on"></i>'.repeat(on)}${'<i></i>'.repeat(10 - on)}<b>${pct}%</b></div>
+        ${r.reasons.length ? `<p class="why"><span>Общее:</span> ${esc(r.reasons.join(' · '))}</p>` : ''}
+      </div>
+      <div class="actions">
+        <button type="button" class="btn btn-like" data-act="like" data-id="${esc(g.id)}">${ICON.plus}Нравится</button>
+        <button type="button" class="btn" data-act="only" data-id="${esc(g.id)}">${ICON.search}Похожие на эту</button>
+      </div>
+    </li>`;
+  }
+  function renderResults(res) {
+    shown.clear();
+    res.results.forEach(r => shown.set(r.game.id, r.game));
+    el.profile.innerHTML = res.profile.map(p =>
+      `<li class="pf ${p.kind}" style="--w:${p.weight}"><span>${esc(p.label)}</span></li>`).join('');
+    el.profileSec.hidden = !res.profile.length;
+    el.title.textContent = resultsTitle();
+    el.note.hidden = !state.example;
+    el.note.textContent = state.example ? 'Это пример. Введите свою игру в поиске, и подборка обновится.' : '';
+    el.empty.hidden = true;
+    el.grid.hidden = false;
+    el.grid.innerHTML = res.results.length ? res.results.map(card).join('')
+      : '<li class="error">Подходящих игр не нашлось. Уберите часть отметок «Не то» или выключите фильтр серии.</li>';
+    el.more.hidden = res.results.length < state.k || state.k >= MAX_K;
+  }
+  function renderEmpty() {
+    el.profileSec.hidden = true;
+    el.grid.hidden = true;
+    el.grid.innerHTML = '';
+    el.more.hidden = true;
+    el.note.hidden = true;
+    el.title.textContent = 'Рекомендации';
+    el.empty.hidden = false;
+  }
+  function renderError(message) {
+    el.grid.hidden = false;
+    el.grid.innerHTML = `<li class="error"><span>${esc(message)}</span><button type="button" class="btn" data-act="retry">Повторить</button></li>`;
+    el.more.hidden = true;
+  }
+
+  async function run({ scroll = false } = {}) {
+    const my = ++runId;
+    renderQuery();
+    saveHash();
+    if (!state.liked.length) { renderEmpty(); return; }
+    el.grid.setAttribute('aria-busy', 'true');
+    try {
+      const res = await engine.recommend({ liked: state.liked.map(g => g.id), disliked: state.disliked.map(g => g.id),
+        excludeSeries: state.excludeSeries, k: state.k });
+      if (my !== runId) return;
+      renderResults(res);
+      if (scroll) el.results.scrollIntoView({ behavior: reduceMotion() ? 'auto' : 'smooth', block: 'start' });
+    } catch (e) {
+      if (my === runId) renderError(e.message);
+    } finally {
+      if (my === runId) el.grid.removeAttribute('aria-busy');
+    }
+  }
+
+  /* ---------- поиск с подсказками ---------- */
+  function closeSuggest() {
+    el.suggest.hidden = true;
+    el.suggest.innerHTML = '';
+    suggestions = [];
+    active = -1;
+    el.q.setAttribute('aria-expanded', 'false');
+    el.q.removeAttribute('aria-activedescendant');
+  }
+  function paintActive() {
+    el.suggest.querySelectorAll('[role="option"]').forEach((li, i) => li.setAttribute('aria-selected', String(i === active)));
+    if (active >= 0) {
+      el.q.setAttribute('aria-activedescendant', 'opt-' + active);
+      el.suggest.children[active]?.scrollIntoView({ block: 'nearest' });
+    } else {
+      el.q.removeAttribute('aria-activedescendant');
+    }
+  }
+  function renderSuggest(message) {
+    const inQuery = new Set(state.example ? [] : state.liked.map(g => g.id));
+    el.suggest.innerHTML = suggestions.length
+      ? suggestions.map((g, i) => `<li role="option" id="opt-${i}" data-i="${i}" aria-selected="false">${cover(g, 'sm')}` +
+          `<span class="s-text"><span class="s-title">${esc(g.title)}</span><span class="s-meta">${g.year} · ${esc(g.genres.join(' · '))}</span></span>` +
+          (inQuery.has(g.id) ? '<span class="s-flag">в запросе</span>' : '') + '</li>').join('')
+      : `<li class="s-none">${esc(message || `Не нашёл такую игру среди ${plural(stats.games, 'игры', 'игр', 'игр')} в базе. Попробуйте другое написание или английское название.`)}</li>`;
+    el.suggest.hidden = false;
+    el.q.setAttribute('aria-expanded', 'true');
+    paintActive();
+  }
+  async function updateSuggest() {
+    const q = el.q.value.trim();
+    const my = ++searchId;
+    if (!q) { closeSuggest(); return; }
+    try {
+      const list = await engine.search(q, 8);
+      if (my !== searchId) return;
+      suggestions = list;
+      active = list.length ? 0 : -1;
+      renderSuggest();
+    } catch (e) {
+      if (my !== searchId) return;
+      suggestions = [];
+      active = -1;
+      renderSuggest(e.message);
+    }
+  }
+  function choose(i) {
+    const g = suggestions[i];
+    if (!g) return;
+    addLiked(g, { replaceExample: true });
+    el.q.value = '';
+    closeSuggest();
+    run();
+  }
+
+  let timer;
+  el.q.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(updateSuggest, engine.mode === 'api' ? 120 : 40); });
+  el.q.addEventListener('focus', () => { if (el.q.value.trim()) updateSuggest(); });
+  el.q.addEventListener('blur', () => setTimeout(closeSuggest, 120));
+  el.q.addEventListener('keydown', e => {
+    if (e.key === 'ArrowDown' && suggestions.length) { e.preventDefault(); active = (active + 1) % suggestions.length; paintActive(); }
+    else if (e.key === 'ArrowUp' && suggestions.length) { e.preventDefault(); active = (active - 1 + suggestions.length) % suggestions.length; paintActive(); }
+    else if (e.key === 'Enter') { e.preventDefault(); if (active >= 0) choose(active); }
+    else if (e.key === 'Escape') { closeSuggest(); }
+    else if (e.key === 'Backspace' && !el.q.value && state.liked.length && !state.example) { state.liked.pop(); state.k = PAGE; run(); }
+  });
+  el.suggest.addEventListener('pointerdown', e => e.preventDefault());
+  el.suggest.addEventListener('click', e => {
+    const li = e.target.closest('[data-i]');
+    if (li) choose(Number(li.dataset.i));
+  });
+
+  /* ---------- кнопки ---------- */
+  el.grid.addEventListener('click', e => {
+    const btn = e.target.closest('button[data-act]');
+    if (!btn) return;
+    if (btn.dataset.act === 'retry') { run(); return; }
+    const g = shown.get(btn.dataset.id);
+    if (!g) return;
+    if (btn.dataset.act === 'like') { addLiked(g); run(); }
+    else if (btn.dataset.act === 'dislike') { addDisliked(g); run(); }
+    else if (btn.dataset.act === 'only') { only(g); run({ scroll: true }); }
+  });
+  document.querySelector('.query').addEventListener('click', e => {
+    const btn = e.target.closest('button[data-remove]');
+    if (!btn) return;
+    const id = btn.dataset.id;
+    state.example = false;
+    if (btn.dataset.remove === 'like') state.liked = state.liked.filter(g => g.id !== id);
+    else state.disliked = state.disliked.filter(g => g.id !== id);
+    state.k = PAGE;
+    run();
+  });
+  el.noSeries.addEventListener('change', () => { state.excludeSeries = el.noSeries.checked; state.k = PAGE; run(); });
+  el.more.addEventListener('click', () => { state.k = Math.min(MAX_K, state.k + PAGE); run(); });
+  el.clear.addEventListener('click', () => {
+    state.liked = []; state.disliked = []; state.example = false; state.k = PAGE;
+    run();
+    el.q.focus();
+  });
+  el.random.addEventListener('click', async () => {
+    try { only(await engine.random()); run(); } catch (e) { renderError(e.message); }
+  });
+  el.tryRow.addEventListener('click', async e => {
+    const btn = e.target.closest('button[data-id]');
+    if (!btn) return;
+    try { only(await engine.get(btn.dataset.id)); run(); } catch (err) { renderError(err.message); }
+  });
+
+  /* ---------- текст «как работает» из живой модели ---------- */
+  async function fillHow(config) {
+    const idf = stats.idf || {};
+    try {
+      const w = await engine.get(EXAMPLE_ID);
+      const n = w.genres.length + w.tags.length;
+      document.getElementById('how-1').textContent = `У каждой игры есть жанры и теги: сеттинг, механики, настроение, режимы. ` +
+        `У «${w.title}» это ${w.genres[0]}, ${w.tags.slice(0, 2).join(', ')} и ещё ${plural(n - 3, 'признак', 'признака', 'признаков')}.`;
+    } catch (e) { /* в базе нет примера, оставляем общий текст */ }
+    const rare = idf['t:лавкрафтовский ужас'], common = idf['t:сюжетная'];
+    if (rare && common) {
+      document.getElementById('how-2').textContent = `Вес признака умножается на IDF: чем реже признак, тем больше он говорит об игре. ` +
+        `«Лавкрафтовский ужас» получает множитель ${num(rare)}, а «сюжетная» всего ${num(common)}.`;
+    }
+    document.getElementById('how-3').innerHTML = `Каждая игра становится вектором из ${plural(stats.features, 'числа', 'чисел', 'чисел')}. ` +
+      `Похожесть двух игр равна косинусу угла между ними: <code>cos = A·B / (|A|·|B|)</code>. Одинаковые игры дают 100%.`;
+    const dw = config.params && config.params.dislike_weight;
+    if (dw) {
+      document.getElementById('how-4').textContent = `Векторы любимых игр складываются в профиль вкуса. ` +
+        `Отметка «Не то» отнимает ${num(dw)} × сходство с этой игрой у каждой рекомендации.`;
+    }
+    document.getElementById('how-foot').textContent = engine.mode === 'api'
+      ? 'Это контентная фильтрация на TF‑IDF. Сейчас рекомендации считает Python-сервер (scikit-learn), страница только показывает ответ API.'
+      : 'Это контентная фильтрация на TF‑IDF. Модель работает прямо в браузере, без сервера; в проекте есть та же модель на Python (scikit-learn) с REST API.';
+  }
+
+  /* ---------- запуск ---------- */
+  function fatal(message) {
+    document.getElementById('app').innerHTML = `<p class="fatal">${esc(message)}</p>`;
+    el.stats.textContent = '';
+  }
+  async function boot() {
+    let config;
+    try { config = JSON.parse(document.getElementById('reco-config').textContent); }
+    catch (e) { fatal('Страница не собрана. Запустите python build_site.py (сайт без сервера) или python app.py (сайт с сервером).'); return; }
+    engine = config.api ? new RecoEngine.ApiEngine(config.api) : new RecoEngine.LocalEngine(config.games, config.params);
+    try { stats = await engine.stats(); }
+    catch (e) { fatal(e.message); return; }
+    el.stats.textContent = `${plural(stats.games, 'игра', 'игры', 'игр')} · ${plural(stats.features, 'признак', 'признака', 'признаков')} · ` +
+      (engine.mode === 'api' ? 'считает Python-сервер' : 'считает браузер');
+    el.tryRow.insertAdjacentHTML('beforeend', TRY.map(([id, name]) => `<button type="button" class="link" data-id="${id}">${esc(name)}</button>`).join(''));
+    fillHow(config);
+    const restored = await restoreHash().catch(() => false);
+    if (!restored) {
+      try { state.liked = [await engine.get(EXAMPLE_ID)]; state.example = true; } catch (e) { state.liked = []; }
+    }
+    run();
+  }
+  boot();
+})();
+</script>
+</body>
+</html>
